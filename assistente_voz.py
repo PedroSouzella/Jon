@@ -150,8 +150,30 @@ def _listar_atalhos():
     return lista
 
 
+def _esqueleto(p: str) -> str:
+    """'Som' da palavra, pra perdoar o reconhecimento de voz: 'streamer'/'streaming' ~ 'stremio'."""
+    p = re.sub(r"(ings?|ers?|s)$", "", p) if len(p) > 5 else p
+    p = p.replace("ph", "f").replace("ck", "c").replace("k", "c").replace("q", "c").replace("y", "i")
+    p = p.replace("w", "v").replace("z", "s").replace("x", "s").replace("h", "")
+    p = p[:1] + re.sub(r"[aeiou]", "", p[1:])
+    return re.sub(r"(.)\1+", r"\1", p)
+
+
+def _parecido(a: str, b: str) -> float:
+    import difflib
+    nota = difflib.SequenceMatcher(None, a, b).ratio()
+    if len(a) >= 4 and len(b) >= 4 and nota >= 0.55:     # o som só ajuda se a escrita já for parecida
+        ea, eb = _esqueleto(a), _esqueleto(b)
+        if len(ea) >= 3 and len(eb) >= 3:
+            som = difflib.SequenceMatcher(None, ea, eb).ratio()
+            if som >= 0.9:                               # só quando o "som" é praticamente o mesmo
+                nota = max(nota, som * 0.97)
+    return nota
+
+
 def achar_atalho(chave: str):
-    """Acha o atalho cujo nome mais parece com o que foi falado (tolera erros: 'mirrage' -> 'Mirage')."""
+    """Acha o atalho cujo nome mais parece com o que foi falado.
+    Tolera erros de digitação e de reconhecimento de voz: 'mirrage' -> 'Mirage', 'streamer' -> 'Stremio'."""
     import difflib
     alvo = re.sub(r"[^\w\s]", " ", normalizar(chave))
     alvo = re.sub(r"\s+", " ", alvo).strip()
@@ -162,15 +184,14 @@ def achar_atalho(chave: str):
         n = re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", nome)).strip()
         if not n:
             continue
-        nota = difflib.SequenceMatcher(None, alvo, n).ratio()
-        # cada palavra falada parecida com alguma palavra do atalho ("ac mirage", "creed mirage")
-        pal_a, pal_n = alvo.split(), n.split()
-        acertos = sum(1 for p in pal_a if any(difflib.SequenceMatcher(None, p, q).ratio() >= 0.8 for q in pal_n))
-        cobertura = acertos / len(pal_a)
-        if cobertura == 1 and len(pal_a) >= 1:
-            nota = max(nota, 0.85 + 0.1 * min(1.0, len(pal_a) / len(pal_n)))
         if alvo == n:
-            nota = 2.0
+            return caminho
+        nota = difflib.SequenceMatcher(None, alvo, n).ratio()
+        # cada palavra falada parecida (na escrita ou no som) com alguma palavra do atalho
+        pal_a, pal_n = alvo.split(), n.split()
+        sims = [max(_parecido(p, q) for q in pal_n) for p in pal_a]
+        if min(sims) >= 0.8:
+            nota = max(nota, 0.78 + 0.12 * (sum(sims) / len(sims)) + 0.07 * min(1.0, len(pal_a) / len(pal_n)))
         if nota > nota_melhor:
             melhor, nota_melhor = caminho, nota
     return melhor if nota_melhor >= 0.78 else None
@@ -187,6 +208,8 @@ def limpar_nome_app(nome: str) -> str:
     """'o aplicativo Hydra na área de trabalho' -> 'Hydra'."""
     n = unicodedata.normalize("NFKD", nome)
     n = "".join(c for c in n if not unicodedata.combining(c))
+    n = re.sub(r"^\s*((abre|abrir|abra|inicia|iniciar|executa|executar|liga|ligar|entra|entrar)\s+)+", " ", n,
+               flags=re.I)                       # "abrir abrir abrir o app X" (o reconhecimento repete)
     n = re.sub(ENCHIMENTO_APP, " ", n, flags=re.I)
     n = re.sub(r"^\s*(o|a|os|as|meu|minha)\s+", " ", n, flags=re.I)
     n = re.sub(r"\s+(na|no|da|do|de)$", "", re.sub(r"\s+", " ", n).strip(" ,.")).strip()
