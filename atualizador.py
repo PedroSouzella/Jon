@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Atualizador do Jon: confere o GitHub e instala versões novas do código.
-- Fonte: o SEU repositório (config.json -> "repo_atualizacao", padrão abaixo).
+- Fonte: o projeto principal (ou o seu fork: config.json -> "repo_atualizacao": "usuario/Jon").
 - Também avisa quando o repositório original (de onde o seu é fork) tem novidades.
 - Antes de instalar, guarda uma cópia do código atual em backups/.
 - NUNCA mexe nos seus dados (memória, config, e-mail, Spotify, rotinas, logs).
@@ -17,7 +17,7 @@ import zipfile
 PASTA = os.path.dirname(os.path.abspath(__file__))
 ARQ_ESTADO = os.path.join(PASTA, "atualizacao.json")
 ARQ_CONFIG = os.path.join(PASTA, "config.json")
-REPO_PADRAO = "PedroSouzella/Jon"
+REPO_PADRAO = "Sabadini25/Jon"          # projeto principal; um fork usa config.json -> "repo_atualizacao"
 EXTENSOES = (".py", ".pyw", ".bat", ".ps1", ".ico", ".png", ".html", ".json", ".txt", ".md")
 PROTEGIDOS = {"config.json", "memoria.json", "memoria.json.tmp", "rotinas.json", "recentes.json",
               "email_config.json", "spotify_client_id.txt", ".spotify_token_cache", "atualizacao.json",
