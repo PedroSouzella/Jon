@@ -236,6 +236,8 @@ def abrir_app(nome: str):
             else:
                 print(f"  -> não achei {nome} no celular nem no computador")
         return
+    if chave in video.FALADO or chave.split(" ")[0] in video.FALADO:
+        video.ultimo = (video.FALADO.get(chave) or video.FALADO[chave.split(" ")[0]], time.time())
     alvo = APPS.get(chave)
     if alvo:
         print(f"  -> abrindo {chave}")
@@ -657,8 +659,17 @@ def controle_video(f: str) -> bool:
         foco = video.em_foco()
     except Exception:
         foco = None
+    recente = video.ultimo if video.ultimo and time.time() - video.ultimo[1] < 25 else None
     if not tem_alvo and not foco:
-        return False                      # ex.: "tela cheia" com o Jon na frente = modo Big Picture
+        if not recente:
+            return False                  # ex.: "tela cheia" com o Jon na frente = modo Big Picture
+        player = recente[0]               # "abre o Stremio" + "coloca em tela cheia": vale pro Stremio
+        for _ in range(20):               # espera a janela dele aparecer
+            if video.achar(player)[0]:
+                break
+            time.sleep(0.5)
+        if time.time() - recente[1] < 6:
+            time.sleep(2.5)               # acabou de abrir: ainda está carregando
     # "abre o Stremio e coloca em tela cheia": abre primeiro, espera e depois faz
     if player and re.match(r"^(abre|abrir|abra|inicia|iniciar)\b", f):
         h, _ = video.achar(player)
@@ -923,7 +934,49 @@ CTL_NO_FIM = (r"^(?P<pedido>.+?)[\s,]+(?:e\s+)?(?P<ctl>(?:(?:deixa|deixar|deixe|
               r"(?:modo\s+)?(?:repeat|repet\w*|loop\w*|aleatori\w*|shuffle)\b.*)$")
 
 
+VERBOS_COMANDO = (r"(abre|abrir|abra|fecha|fechar|feche|toca|tocar|toque|coloca|colocar|coloque|bota|botar|poe|por|"
+                  r"pausa|pausar|pause|para|parar|pare|continua|continuar|continue|despausa|despausar|da play|"
+                  r"dar play|de play|play|volta|voltar|volte|avanca|avancar|avance|adianta|adiantar|pula|pular|"
+                  r"pule|passa|passar|aumenta|aumentar|abaixa|abaixar|diminui|diminuir|muta|mutar|deixa|deixar|"
+                  r"liga|ligar|desliga|desligar|tira|tirar|pesquisa|pesquisar|procura|procurar|busca|buscar|"
+                  r"me lembra|lembra|mostra|mostrar|minimiza|minimizar|maximiza|maximizar|bloqueia|curte|curtir|"
+                  r"repete|repetir|sai|sair|entra|entrar|recomeca|recomecar|reinicia|reiniciar|comeca|sobe|baixa|"
+                  r"ativa|ativar|desativa|desativar|seleciona|escolhe|inicia|iniciar|executa|joga|manda|mande)")
+SEPARADOR = (r"\s*[,;]\s*(?:e\s+)?(?:depois\s+|em seguida\s+|entao\s+)?|"
+             r"\s+(?:e\s+(?:depois\s+|em seguida\s+|tambem\s+|ja\s+|logo\s+)?|depois\s+|em seguida\s+|entao\s+)")
+
+
+def dividir_comandos(texto: str):
+    """'bota tela cheia e dá play' -> ['bota tela cheia', 'dá play'].
+    Só corta quando o pedaço seguinte começa com um verbo de comando (não corta 'toca Simon e Garfunkel')."""
+    pedacos, inicio = [], 0
+    for m in re.finditer(SEPARADOR, texto, flags=re.I):
+        resto = normalizar(texto[m.end():])
+        resto = re.sub(r"^(jon|john|ai|tambem|ja)\s+", "", resto)
+        if re.match(VERBOS_COMANDO + r"\b", resto) and \
+                not re.match(r"(deixa|deixar|coloca|colocar|bota|botar|poe)\s+(ela\s+|a musica\s+)?(no|em|com|de|na)?\s*"
+                             r"(modo\s+)?(repeat|repet|loop|aleatori|shuffle)", resto):   # 'toca X e deixa no repeat' tem caminho próprio
+            pedacos.append(texto[inicio:m.start()].strip(" ,"))
+            inicio = m.end()
+    pedacos.append(texto[inicio:].strip(" ,"))
+    return [p for p in pedacos if p]
+
+
 def executar(frase: str):
+    original = re.sub(r"^\s*(ei|oi|hey|ok|e ai|fala)?[\s,]*(jon|john|jhon|jonh|jonny|djon)\b[\s,.!:]*", "",
+                      frase.strip(), flags=re.I).strip() or frase.strip()
+    partes = dividir_comandos(original)
+    if len(partes) > 1:
+        print(f"  ({len(partes)} comandos: " + " → ".join(f'“{p}”' for p in partes) + ")")
+        for k, parte in enumerate(partes):
+            if k:
+                time.sleep(0.9)            # dá tempo do comando anterior acontecer (abrir app, tela cheia...)
+            executar_um(parte)
+        return
+    executar_um(original)
+
+
+def executar_um(frase: str):
     original = frase.strip()
     # "Jon, toca X" / "ei Jon abre o Discord" -> tira o nome
     original = re.sub(r"^\s*(ei|oi|hey|ok|e ai|fala)?[\s,]*(jon|john|jhon|jonh|jonny|djon)\b[\s,.!:]*", "",

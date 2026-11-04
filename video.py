@@ -29,6 +29,9 @@ ALVO = (r"\b(filme|filmes|video|videos|serie|series|episodio|episodios|anime|des
         r"pluto|apple tv|player|streaming)\b|\bno max\b|\ba max\b|\bo max\b")
 
 
+ultimo = None            # (tipo, quando) do último player aberto/controlado — pra "e dá play" logo depois
+
+
 def _janelas():
     """[(hwnd, exe_minusculo, titulo)] das janelas visíveis, a de cima primeiro."""
     u32, k32 = ctypes.windll.user32, ctypes.windll.kernel32
@@ -118,6 +121,8 @@ def _teclas(tipo, acao):
         return "ctrl+up" if vlc else "up"
     if acao == "volume_menos":
         return "ctrl+down" if vlc else "down"
+    if acao == "inicio":
+        return "0" if yt else "home"
     if acao == "mudo":
         return "m"
     if acao == "proximo":
@@ -142,6 +147,9 @@ def entender(f: str):
             break
     if re.search(r"\b(proximo|proxima) (episodio|ep|video|capitulo)\b|\bpula (pro|para o) proximo\b", f):
         return "proximo", 1, pedido
+    if re.search(r"\b(volta|voltar|volte|recomeca|recomecar|reinicia|reiniciar|comeca|comecar|assiste|assistir)\b.*"
+                 r"\b(desde o|do|pro|para o|ao|no|de novo do) (inicio|comeco)\b|\b(desde o|do) (inicio|comeco)\b", f):
+        return "inicio", 1, pedido
     if re.search(r"\b(pula|pular|pule)\b.*\b(abertura|intro|introducao)\b", f):
         return "pular_abertura", 1, pedido
     if re.search(r"\b(tela cheia|full ?screen|tela inteira|tela toda|maximiza|maximizar|aumenta a tela)\b", f):
@@ -189,9 +197,12 @@ def controlar(acao, vezes=1, pedido=None):
     for _ in range(vezes):
         keyboard.send(tecla)
         time.sleep(0.08)
+    global ultimo
+    ultimo = (tipo, time.time())
     nome = NOMES.get(tipo, tipo)
     return {"tela_cheia": f"{nome} em tela cheia.", "sair_tela_cheia": f"{nome} fora da tela cheia.",
             "play_pausa": f"Play/pausa no {nome}.", "avancar": f"Avancei {vezes * 10} segundos.",
             "voltar": f"Voltei {vezes * 10} segundos.", "volume_mais": "Volume do vídeo mais alto.",
             "volume_menos": "Volume do vídeo mais baixo.", "mudo": "Som do vídeo ligado/desligado.",
-            "proximo": "Próximo episódio.", "pular_abertura": "Pulando a abertura."}[acao]
+            "proximo": "Próximo episódio.", "pular_abertura": "Pulando a abertura.",
+            "inicio": "Voltei pro começo."}[acao]
