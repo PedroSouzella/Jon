@@ -87,6 +87,10 @@ try:
     import web_jon  # noqa: E402
     import painel_extra as px  # noqa: E402
     try:
+        import atualizador  # noqa: E402
+    except Exception:
+        atualizador = None
+    try:
         import numpy  # noqa: F401
         from PIL import Image, ImageTk  # noqa: E402
         import holo_render  # noqa: E402
@@ -102,6 +106,7 @@ av.ao_status = lambda estado: FILA.put(("status", estado))
 av.mostrar_interface = lambda: FILA.put(("janela", "mostrar")) or True
 av.esconder_interface = lambda: FILA.put(("janela", "esconder")) or True
 av.modo_tela = lambda abrir: FILA.put(("bigpicture", abrir)) or True
+av.checar_atualizacao = lambda: FILA.put(("checar_atualizacao", True)) or True
 
 # ---------- configurações ----------
 CONFIG_PADRAO = {"tecla": "f9", "maos_livres": False, "falar": True}
@@ -1176,7 +1181,7 @@ class App(ctk.CTk):
                      self.recentes.vigiar, self._vigiar_email, self._vigiar_clima,
                      lambda: self.notif.rodar(lambda: getattr(self, "visivel", True)),
                      lambda: self.downloads.rodar(lambda: getattr(self, "visivel", True)),
-                     self._vigiar_controle):
+                     self._vigiar_controle, self._vigiar_atualizacao):
             threading.Thread(target=alvo, daemon=True).start()
         self.after(33, self._loop)
         self.after(1000, self._relogio)
@@ -1233,9 +1238,16 @@ class App(ctk.CTk):
 
         dir_ = ctk.CTkFrame(cab, fg_color="transparent")
         dir_.pack(side="right", padx=14)
-        ctk.CTkButton(dir_, text="\uE8BD", width=34, height=34, corner_radius=17, fg_color="transparent",
-                      border_width=1, border_color=BORDA, hover_color=PAINEL2, text_color=ROXO_CLARO,
-                      font=(ICO, 13), command=self.mostrar_chat).pack(side="left", padx=4)
+        # aparece só quando o GitHub tem uma versão nova
+        self.bt_atualizar = ctk.CTkButton(dir_, text="⬇  ATUALIZAÇÃO", width=130, height=30, corner_radius=15,
+                                          fg_color=ROSA, hover_color=ROXO_CLARO, text_color="#0b0716",
+                                          font=(MONO, 10, "bold"), command=self.mostrar_atualizacao)
+        self._info_atualizacao = None
+        self._primeiro_botao_topo = ctk.CTkButton(dir_, text="\uE8BD", width=34, height=34, corner_radius=17,
+                                                  fg_color="transparent", border_width=1, border_color=BORDA,
+                                                  hover_color=PAINEL2, text_color=ROXO_CLARO, font=(ICO, 13),
+                                                  command=self.mostrar_chat)
+        self._primeiro_botao_topo.pack(side="left", padx=4)
         ctk.CTkButton(dir_, text="?", width=34, height=34, corner_radius=17, fg_color="transparent",
                       border_width=1, border_color=BORDA, hover_color=PAINEL2, text_color=ROXO_CLARO,
                       font=(MONO, 14, "bold"), command=self.mostrar_exemplos).pack(side="left", padx=4)
@@ -2002,6 +2014,77 @@ class App(ctk.CTk):
         except Exception as e:
             print("  (não consegui trazer a janela pra frente):", e)
 
+    # ---------------- atualização pelo GitHub ----------------
+    def _vigiar_atualizacao(self):
+        """Confere o GitHub 20 s depois de abrir e depois a cada 3 horas."""
+        if atualizador is None:
+            return
+        self._checar_agora = threading.Event()
+        time.sleep(20)
+        while True:
+            try:
+                FILA.put(("atualizacao", atualizador.checar()))
+            except Exception as e:
+                FILA.put(("atualizacao", {"erro": str(e)[:120]}))
+            self._checar_agora.wait(3 * 3600)
+            self._checar_agora.clear()
+
+    def _mostrar_info_atualizacao(self, r, pedido=False):
+        self._info_atualizacao = r
+        if r.get("erro"):
+            if pedido:
+                self.add_hist("erro", "Não consegui olhar o GitHub agora: " + r["erro"])
+            return
+        if r["disponivel"]:
+            self.bt_atualizar.pack(side="left", padx=(0, 8), before=self._primeiro_botao_topo)
+            if getattr(self, "_avisado_sha", None) != r["sha"]:
+                self._avisado_sha = r["sha"]
+                self.add_hist("alerta", f"⬇ Atualização do Jon disponível: {r['mensagem']}  (clique em ATUALIZAÇÃO no topo)")
+        else:
+            self.bt_atualizar.pack_forget()
+            if pedido:
+                self.add_hist("acao", f"O Jon está atualizado (versão de {r['data']}).")
+        if r.get("original_novo") and getattr(self, "_avisado_orig", None) != r.get("original_msg"):
+            self._avisado_orig = r.get("original_msg")
+            self.add_hist("info", f"Novidade no projeto original ({r['original']}): {r['original_msg']} — "
+                                  f"abra github.com/{r['repo']} e clique em 'Sync fork' pra trazer pra você.")
+
+    def mostrar_atualizacao(self):
+        r = self._info_atualizacao or {}
+        j = ctk.CTkToplevel(self)
+        j.title("Atualizar o Jon")
+        j.geometry("460x300")
+        j.configure(fg_color=BG)
+        j.transient(self)
+        j.after(120, j.lift)
+        ctk.CTkLabel(j, text="⬇  NOVA VERSÃO DO JON", font=(MONO, 14, "bold"), text_color=ROXO_CLARO).pack(pady=(18, 6))
+        ctk.CTkLabel(j, text=f"“{r.get('mensagem', '')}”\n{r.get('repo', '')} • {r.get('data', '')}", font=(SANS, 12),
+                     text_color=LILAS, wraplength=410).pack(padx=20)
+        ctk.CTkLabel(j, text="O Jon guarda uma cópia da versão atual (pasta backups), troca só o código e reinicia "
+                             "sozinho. Sua memória, configurações, e-mail e Spotify não são mexidos.",
+                     font=(SANS, 11), text_color=MUDO, wraplength=410, justify="left").pack(padx=20, pady=12)
+        msg = ctk.CTkLabel(j, text="", font=(SANS, 11), text_color=MUDO, wraplength=410)
+        msg.pack()
+
+        def instalar():
+            msg.configure(text="Baixando e instalando…", text_color=MUDO)
+
+            def rodar():
+                try:
+                    trocados = atualizador.aplicar(r.get("sha"))
+                    print(f"  -> Jon atualizado ({len(trocados)} arquivos). Reiniciando…")
+                    j.after(0, lambda: msg.configure(text="Pronto! Reiniciando o Jon…", text_color=VERDE))
+                    atualizador.reiniciar_jon()
+                    self.after(1200, self.sair)
+                except Exception as e:
+                    j.after(0, lambda: msg.configure(text="Não consegui atualizar: " + str(e)[:120],
+                                                     text_color=VERMELHO))
+            threading.Thread(target=rodar, daemon=True).start()
+        ctk.CTkButton(j, text="ATUALIZAR AGORA", height=34, width=200, fg_color=ROXO, hover_color=ROXO_CLARO,
+                      text_color="#0b0716", font=(MONO, 12, "bold"), command=instalar).pack(pady=(10, 4))
+        ctk.CTkButton(j, text="depois", height=22, fg_color="transparent", hover_color=PAINEL2, text_color=APAGADO,
+                      font=(MONO, 9), command=j.destroy).pack()
+
     def _vigiar_controle(self):
         """Start + Back (ou Menu + Visualizar) no controle abre o Big Picture de qualquer lugar."""
         c = Controle()
@@ -2753,6 +2836,13 @@ class App(ctk.CTk):
                         self._capa_pil = img
                 elif tipo == "email":
                     self._desenhar_email()
+                elif tipo == "atualizacao":
+                    self._mostrar_info_atualizacao(val, getattr(self, "_pediu_checar", False))
+                    self._pediu_checar = False
+                elif tipo == "checar_atualizacao":
+                    self._pediu_checar = True
+                    if getattr(self, "_checar_agora", None):
+                        self._checar_agora.set()
                 elif tipo == "bigpicture":
                     self.big_picture(val)
                 elif tipo == "clima":

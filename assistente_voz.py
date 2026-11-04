@@ -705,6 +705,10 @@ def modo_tela(abrir: bool):
     return False
 
 
+def checar_atualizacao():
+    return False
+
+
 def esconder_interface():
     return False
 
@@ -720,6 +724,15 @@ INTERFACE = r"\b(interfa\w*|interfe\w*|painel|hud|sua tela|sua janela|seu app|se
 def comandos_jarvis(f: str, original: str) -> bool:
     """Hora, data, clima, briefing, status do sistema, lembretes/timers/rotinas, pastas, print, fechar apps."""
     resp = None
+    # procurar atualização do Jon no GitHub
+    if re.search(r"\b(atualiza|atualizar|atualize|atualizacao|atualizacoes|update)\b", f) and \
+            re.search(r"\b(jon|voce|se|sistema|assistente|versao|tem|procura|procurar|checa|checar|verifica)\b", f) \
+            and not re.search(r"\b(windows|driver|steam|spotify|chrome|jogo)\b", f):
+        if checar_atualizacao():
+            resp = "Vou olhar no GitHub se tem versão nova."
+            print(f"  -> {resp}")
+            falar(resp)
+            return True
     # modo Big Picture (tela cheia estilo Steam)
     if re.search(r"\b(big picture|bigpicture|big pic\w*|modo (tela cheia|imersivo|tv|televisao|cinema|sofa))\b", f) \
             or re.match(r"^(tela cheia|abre (a )?tela cheia|modo grande)$", f):
