@@ -41,6 +41,7 @@ import rotinas
 import extras
 import sistema
 import pesquisa
+import video
 
 # ===================== CONFIGURAÇÃO =====================
 TECLA_FALAR = "f9"          # tecla para segurar enquanto fala (ex.: "f9", "ctrl+alt+v", "scroll lock")
@@ -639,6 +640,41 @@ def comando_midia(f: str) -> bool:
     return True
 
 
+def controle_video(f: str) -> bool:
+    """Filmes/vídeos: 'coloca o Stremio em tela cheia', 'pausa o filme', 'avança 30 segundos', 'próximo episódio'.
+    Sem dizer o player, só vale se um vídeo estiver na frente (ex.: você segurou F9 vendo Netflix)."""
+    if re.search(r"\b(musica|musicas|spotify|playlist|curtidas)\b", f):
+        return False
+    try:
+        pedido_ = video.entender(f)
+    except Exception:
+        return False
+    if not pedido_:
+        return False
+    acao, vezes, player = pedido_
+    tem_alvo = bool(re.search(video.ALVO, f))
+    try:
+        foco = video.em_foco()
+    except Exception:
+        foco = None
+    if not tem_alvo and not foco:
+        return False                      # ex.: "tela cheia" com o Jon na frente = modo Big Picture
+    # "abre o Stremio e coloca em tela cheia": abre primeiro, espera e depois faz
+    if player and re.match(r"^(abre|abrir|abra|inicia|iniciar)\b", f):
+        h, _ = video.achar(player)
+        if not h:
+            abrir_app(player)
+            for _ in range(20):
+                time.sleep(0.5)
+                h, _ = video.achar(player)
+                if h:
+                    break
+            time.sleep(2.5)               # o player ainda está carregando
+    resp = video.controlar(acao, vezes, player)
+    print(f"  -> {resp}")
+    return True
+
+
 def avisar(texto: str):
     """Lembrete/rotina disparou: bipa, mostra e fala."""
     for f_, d in ((880, 150), (1100, 150), (880, 150)):
@@ -910,6 +946,9 @@ def executar(frase: str):
         bip(600, 300)
         time.sleep(0.4)
         os._exit(0)
+
+    if controle_video(f):
+        return
 
     if comandos_jarvis(f, original):
         return
