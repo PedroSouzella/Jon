@@ -1,0 +1,73 @@
+=====================================================================
+  J O N  —  assistente pessoal por voz (Windows)
+=====================================================================
+
+Esta é uma cópia "zerada": sem memória, sem histórico, sem contas.
+Tudo que o Jon aprender e configurar fica só no SEU computador.
+
+---------------------------------------------------------------------
+ 1) INSTALAR (uma vez só)
+---------------------------------------------------------------------
+ a. Instale o Python 3.12 (python.org/downloads).
+    Na primeira tela do instalador, MARQUE "Add python.exe to PATH".
+ b. Coloque a pasta "Jon" onde ela vai ficar de vez
+    (ex.: Documentos\Jon). Se mudar de lugar depois, rode o passo c de novo.
+ c. Dê dois cliques em  1_instalar.bat
+    -> instala as bibliotecas e cria o atalho "Jon" na Área de Trabalho.
+ d. Abra o Jon pelo atalho. Na primeira vez ele pergunta seu nome,
+    sua cidade (pro clima) e, se quiser, o Spotify.
+
+---------------------------------------------------------------------
+ 2) IA LOCAL (opcional, grátis — deixa o Jon entender frases livres)
+---------------------------------------------------------------------
+ a. Instale o Ollama (ollama.com/download).
+ b. Dê dois cliques em  3_baixar_ia.bat  (baixa ~3,4 GB, uma vez só).
+ c. Feche e abra o Jon. No topo deve aparecer "NÚCLEO DE IA: ATIVA".
+ Recomendado: placa de vídeo com 6 GB ou mais. Sem a IA, os comandos
+ diretos (abrir app, tocar música, lembretes, clima...) funcionam igual.
+
+---------------------------------------------------------------------
+ 3) SPOTIFY (opcional — precisa de conta Premium para tocar direto)
+---------------------------------------------------------------------
+ a. Entre em developer.spotify.com/dashboard com sua conta Spotify.
+ b. Create app -> qualquer nome -> Redirect URI:
+        http://127.0.0.1:8888/callback
+    -> marque "Web API" -> Save.
+ c. Copie o "Client ID" e cole no Jon: ⚙ -> MEU PERFIL -> Spotify Client ID.
+ d. Feche e abra o Jon. Na primeira vez abre o navegador pra você autorizar.
+
+---------------------------------------------------------------------
+ 4) COMO USAR
+---------------------------------------------------------------------
+ - Segure F9, fale e solte (funciona com o Jon minimizado).
+ - Ou ligue "MÃOS-LIVRES" no topo e diga "Jon, ..." a qualquer momento.
+ - Ou digite no campo de baixo e aperte Enter.
+ - Clique no "?" do topo para ver todos os exemplos de comandos.
+ - F11 (ou "Jon, modo Big Picture") = tela cheia estilo Steam,
+   com suporte a controle de Xbox.
+ - E-mail: painel E-MAIL -> Conectar (Gmail usa "senha de app").
+
+ Exemplos: "toca Coldplay", "pausa a música", "abre o Discord",
+ "me lembra em 10 minutos de tirar o bolo", "como está o tempo",
+ "bom dia", "pesquisa quem ganhou o jogo ontem", "status do sistema".
+
+---------------------------------------------------------------------
+ 5) CELULAR (opcional, avançado)
+---------------------------------------------------------------------
+ O Jon tem uma página para usar pelo celular, de forma privada, via
+ Tailscale (tailscale.com, grátis):
+ a. Instale o Tailscale no PC e no celular, mesma conta.
+ b. No painel do Tailscale (login.tailscale.com) -> DNS -> ative
+    "MagicDNS" e "HTTPS Certificates".
+ c. Com o Jon aberto, dê dois cliques em  5_ativar_celular.bat
+ d. No celular (Tailscale ligado), abra:
+        https://NOME-DO-SEU-PC.SEU-TAILNET.ts.net
+    (o endereço certo aparece em  4_ver_tailscale.bat -> tailscale_status.txt)
+
+---------------------------------------------------------------------
+ ARQUIVOS QUE O JON CRIA (são SEUS — não mande pra ninguém)
+---------------------------------------------------------------------
+ config.json, memoria.json, rotinas.json, recentes.json,
+ email_config.json (senha do e-mail), spotify_client_id.txt,
+ .spotify_token_cache (login do Spotify), assistente.log
+ Para passar o Jon adiante, copie só os arquivos originais desta pasta.

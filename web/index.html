@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#07050d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jon">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-esfera-180.png">
+<link rel="icon" type="image/png" href="/icone-esfera-192.png">
+<title>Jon</title>
+<style>
+  :root {
+    --bg: #07050d; --painel: #0d0a18; --painel2: #140f24; --borda: #2b1f4f;
+    --roxo: #a855f7; --claro: #c4a1ff; --escuro: #3b1d6e; --lilas: #ede4ff;
+    --mudo: #7d6fa3; --rosa: #f472d0; --verde: #5ef0a0; --vermelho: #f87171;
+    --mono: ui-monospace, "SF Mono", Consolas, "Roboto Mono", monospace;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--lilas);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  body { display: flex; flex-direction: column; padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom); }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 6px; }
+  .marca { font: 700 18px var(--mono); letter-spacing: .5em; }
+  .sub { font: 10px var(--mono); color: var(--mudo); letter-spacing: .08em; margin-top: 2px; }
+  .status { font: 700 11px var(--mono); color: var(--claro); text-align: right; }
+  .status .ponto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--mudo);
+    margin-right: 6px; vertical-align: 1px; transition: background .4s; }
+  .status .ponto.on { background: var(--verde); box-shadow: 0 0 10px var(--verde); }
+  .status .ponto.off { background: var(--vermelho); }
+  #tocando { font: 10px var(--mono); color: var(--mudo); margin-top: 3px; max-width: 46vw;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  #palco { position: relative; flex: 0 0 auto; height: min(42vh, 360px); display: grid; place-items: center; }
+  #orbe { width: min(78vw, 42vh, 360px); height: min(78vw, 42vh, 360px); cursor: pointer; touch-action: manipulation; }
+  #estado { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center;
+    font: 700 12px var(--mono); letter-spacing: .2em; color: var(--claro); transition: color .3s; }
+  #parcial { min-height: 20px; text-align: center; font-size: 15px; color: var(--lilas); opacity: .85; padding: 4px 8px; }
+
+  #conversa { flex: 1 1 auto; overflow-y: auto; padding: 6px 2px 10px; display: flex; flex-direction: column; gap: 8px;
+    mask-image: linear-gradient(to bottom, transparent 0, #000 18px); -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px); }
+  .msg { max-width: 88%; padding: 10px 13px; border-radius: 14px; font-size: 15px; line-height: 1.4; animation: entra .25s ease-out; }
+  .eu { align-self: flex-end; background: var(--escuro); border-bottom-right-radius: 4px; }
+  .jon { align-self: flex-start; background: var(--painel2); border: 1px solid var(--borda); border-bottom-left-radius: 4px; }
+  .jon .abrir { display: block; margin-top: 10px; padding: 10px 12px; border-radius: 12px; text-align: center;
+                font: 600 13px var(--mono); color: #07050d; background: linear-gradient(90deg, #a855f7, #f472d0);
+                text-decoration: none; }
+  .jon .fontes { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .jon .fontes a { font: 11px var(--mono); color: var(--claro); text-decoration: none; border: 1px solid var(--borda);
+    border-radius: 999px; padding: 3px 9px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .erro { color: var(--vermelho); }
+  @keyframes entra { from { opacity: 0; transform: translateY(6px); } }
+
+  #atalhos { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 10px; scrollbar-width: none; }
+  #atalhos::-webkit-scrollbar { display: none; }
+  .chip { flex: 0 0 auto; font: 12px var(--mono); color: var(--claro); background: var(--painel); border: 1px solid var(--borda);
+    border-radius: 999px; padding: 8px 12px; }
+  .chip:active { background: var(--escuro); }
+
+  form { display: flex; gap: 8px; padding-bottom: 12px; }
+  #texto { flex: 1; min-width: 0; font: 16px var(--mono); color: var(--lilas); background: var(--painel);
+    border: 1px solid var(--borda); border-radius: 14px; padding: 13px 14px; outline: none; }
+  #texto:focus { border-color: var(--roxo); }
+  button.redondo { flex: 0 0 auto; width: 50px; height: 50px; border-radius: 50%; border: 1px solid var(--borda);
+    background: var(--painel2); color: var(--lilas); font-size: 20px; display: grid; place-items: center; }
+  #mic { background: radial-gradient(circle at 35% 30%, var(--rosa), var(--roxo) 60%, var(--escuro)); border: none;
+    box-shadow: 0 0 18px #a855f766; }
+  #mic.ouvindo { animation: pulso 1s ease-in-out infinite; }
+  @keyframes pulso { 50% { box-shadow: 0 0 34px #f472d0cc; transform: scale(1.06); } }
+  #destino { font: 600 10px var(--mono); letter-spacing: .08em; color: var(--claro); background: transparent;
+             border: 1px solid var(--borda); border-radius: 999px; padding: 6px 10px; cursor: pointer;
+             -webkit-tap-highlight-color: transparent; white-space: nowrap; }
+  #destino.pc { color: #07050d; background: linear-gradient(90deg, #a855f7, #f472d0); border-color: transparent; }
+  .opcoes { display: flex; gap: 14px; justify-content: center; font: 11px var(--mono); color: var(--mudo); padding-bottom: 8px; }
+  .opcoes label { display: flex; align-items: center; gap: 6px; }
+  .opcoes input { accent-color: var(--roxo); }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="marca">JON</div>
+      <div class="sub">SEU ASSISTENTE PESSOAL</div>
+    </div>
+    <button type="button" id="destino" aria-label="Onde executar os comandos">📱 TELEFONE</button>
+    <div class="status">
+      <div><span class="ponto" id="ponto"></span><span id="conexao">CONECTANDO…</span></div>
+      <div id="tocando"></div>
+    </div>
+  </header>
+
+  <div id="palco">
+    <canvas id="orbe"></canvas>
+    <div id="estado">TOQUE PARA FALAR</div>
+  </div>
+  <div id="parcial"></div>
+
+  <div id="conversa"></div>
+
+  <div id="atalhos">
+    <button class="chip">bom dia</button>
+    <button class="chip">como está o tempo</button>
+    <button class="chip">que música é essa</button>
+    <button class="chip">pausa</button>
+    <button class="chip">próxima</button>
+    <button class="chip">status do sistema</button>
+    <button class="chip">quais são meus lembretes</button>
+  </div>
+
+  <form id="form" autocomplete="off">
+    <input id="texto" placeholder="Fale ou digite um comando…" enterkeyhint="send">
+    <button type="button" class="redondo" id="mic" aria-label="Falar">🎙</button>
+  </form>
+  <div class="opcoes">
+    <label><input type="checkbox" id="falar" checked> falar respostas</label>
+    <label><input type="checkbox" id="conversa-continua"> conversa contínua</label>
+  </div>
+
+<script>
+const $ = s => document.querySelector(s);
+const conversa = $("#conversa"), estadoEl = $("#estado"), parcial = $("#parcial"), mic = $("#mic"), texto = $("#texto");
+let estado = "pronto", nivel = 0;
+
+// ---------------- onde os comandos rodam: telefone ou computador ----------------
+let destino = "celular";
+try { if (localStorage.getItem("jon-destino") === "pc") destino = "pc"; } catch (e) {}
+function mostrarDestino() {
+  const b = $("#destino");
+  b.textContent = destino === "pc" ? "💻 COMPUTADOR" : "📱 TELEFONE";
+  b.classList.toggle("pc", destino === "pc");
+}
+function mudarDestino(d) {
+  destino = d;
+  try { localStorage.setItem("jon-destino", d); } catch (e) {}
+  mostrarDestino();
+}
+mostrarDestino();
+$("#destino").addEventListener("click", () => mudarDestino(destino === "pc" ? "celular" : "pc"));
+// "no computador" / "agora no telefone" sozinho = troca o botão
+const SO_DESTINO = /^(e\s+)?(agora\s+|modo\s+|muda\s+|mudar\s+|troca\s+|trocar\s+|usa\s+|usar\s+)?(pra|para|pro|no|na|o|a|pelo|pela)?\s*(meu\s+)?(computador|pc|desktop|telefone|celular|iphone)[.!]?$/i;
+
+// ---------------- opções salvas no aparelho ----------------
+for (const id of ["falar", "conversa-continua"]) {
+  try { const v = localStorage.getItem("jon-" + id); if (v !== null) $("#" + id).checked = v === "1"; } catch (e) {}
+  $("#" + id).addEventListener("change", e => { try { localStorage.setItem("jon-" + id, e.target.checked ? "1" : "0"); } catch (_) {} });
+}
+
+// ---------------- esfera orgânica (partículas com rastro) ----------------
+const cv = $("#orbe"), cx2 = cv.getContext("2d");
+const N = 150, parts = [];
+for (let i = 0; i < N; i++) {
+  const y = 1 - (i + .5) / N * 2, r = Math.sqrt(1 - y * y), th = i * Math.PI * (3 - Math.sqrt(5));
+  parts.push({ x: Math.cos(th) * r, y, z: Math.sin(th) * r, k: Math.random() < .55 ? 1 : .55 + Math.random() * .4, f: Math.random() * 6.28 });
+}
+const CORES = { pronto: [168, 85, 247], ouvindo: [244, 114, 208], pensando: [196, 161, 255], erro: [248, 113, 113] };
+let cor = [...CORES.pronto], ang = 0, fase = 0;
+function tamanho() {
+  const d = Math.min(devicePixelRatio || 1, 2), w = cv.clientWidth;
+  cv.width = cv.height = Math.round(w * d);
+}
+addEventListener("resize", tamanho); tamanho();
+function quadro() {
+  const W = cv.width, c = W / 2, R = W * .34;
+  const alvo = CORES[estado] || CORES.pronto;
+  for (let i = 0; i < 3; i++) cor[i] += (alvo[i] - cor[i]) * .08;
+  const [r, g, b] = cor.map(Math.round);
+  nivel *= .9;
+  ang += estado === "pensando" ? .04 : .01 + nivel * .03;
+  fase += .05;
+  cx2.globalCompositeOperation = "destination-out";
+  cx2.fillStyle = "rgba(0,0,0,0.22)";                     // desbota o quadro anterior = rastros (fundo transparente)
+  cx2.fillRect(0, 0, W, W);
+  cx2.globalCompositeOperation = "lighter";
+  // atmosfera
+  const at = cx2.createRadialGradient(c, c, R * .1, c, c, R * 1.15);
+  at.addColorStop(0, `rgba(${r},${g},${b},0.10)`); at.addColorStop(.85, `rgba(${r},${g},${b},0.03)`);
+  at.addColorStop(.97, `rgba(${r},${g},${b},0.06)`); at.addColorStop(1, "rgba(0,0,0,0)");
+  cx2.fillStyle = at; cx2.beginPath(); cx2.arc(c, c, R * 1.15, 0, 6.29); cx2.fill();
+  const ca = Math.cos(ang), sa = Math.sin(ang), ct = Math.cos(.32), st = Math.sin(.32);
+  for (const p of parts) {
+    const k = p.k * (1 + nivel * .25 + Math.sin(fase * 7 + p.f) * nivel * .06);
+    let x = p.x * k, y = p.y * k, z = p.z * k;
+    [x, z] = [x * ca + z * sa, -x * sa + z * ca];
+    [y, z] = [y * ct - z * st, y * st + z * ct];
+    const s = 3.2 / (3.2 - z), prof = (z + 1.25) / 2.5;
+    const px = c + x * R * s, py = c - y * R * s, rad = (prof > .6 ? 1.6 : 2.6) * (W / 400);
+    cx2.fillStyle = `rgba(${r},${g},${b},${0.08 + prof * prof * .55})`;
+    cx2.beginPath(); cx2.arc(px, py, rad, 0, 6.29); cx2.fill();
+  }
+  // núcleo
+  const rc = R * (.2 + nivel * .1);
+  const nu = cx2.createRadialGradient(c, c, 0, c, c, rc * 2.2);
+  nu.addColorStop(0, "rgba(255,255,255,0.30)"); nu.addColorStop(.35, `rgba(${r},${g},${b},0.22)`); nu.addColorStop(1, "rgba(0,0,0,0)");
+  cx2.fillStyle = nu; cx2.beginPath(); cx2.arc(c, c, rc * 2.2, 0, 6.29); cx2.fill();
+  cx2.strokeStyle = `rgba(237,228,255,0.25)`; cx2.lineWidth = W / 300;
+  cx2.beginPath(); cx2.arc(c, c, rc, fase * .4, fase * .4 + 5.6); cx2.stroke();
+  requestAnimationFrame(quadro);
+}
+requestAnimationFrame(quadro);
+
+function mudarEstado(e, txt) {
+  estado = e;
+  estadoEl.textContent = txt;
+  estadoEl.style.color = { pronto: "var(--claro)", ouvindo: "var(--rosa)", pensando: "var(--lilas)", erro: "var(--vermelho)" }[e];
+}
+
+// ---------------- conversa ----------------
+function adicionar(quem, conteudo, fontes) {
+  const d = document.createElement("div");
+  d.className = "msg " + quem;
+  d.textContent = conteudo;
+  if (fontes && fontes.length) {
+    const f = document.createElement("div"); f.className = "fontes";
+    for (const fo of fontes.slice(0, 3)) {
+      const a = document.createElement("a"); a.href = fo.url; a.target = "_blank"; a.rel = "noopener";
+      a.textContent = "↗ " + (fo.titulo || fo.url).slice(0, 40); f.appendChild(a);
+    }
+    d.appendChild(f);
+  }
+  conversa.appendChild(d);
+  conversa.scrollTop = conversa.scrollHeight;
+  return d;
+}
+
+function falar(t, depois) {
+  if (!$("#falar").checked || !("speechSynthesis" in window)) { depois && depois(); return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(t);
+  u.lang = "pt-BR"; u.rate = 1.08;
+  const v = speechSynthesis.getVoices().find(v => v.lang && v.lang.toLowerCase().startsWith("pt-br"));
+  if (v) u.voice = v;
+  u.onend = () => depois && depois();
+  u.onerror = () => depois && depois();
+  speechSynthesis.speak(u);
+}
+
+async function enviar(t) {
+  t = (t || "").trim();
+  if (!t) return;
+  adicionar("eu", t);
+  texto.value = ""; parcial.textContent = "";
+  const so = t.match(SO_DESTINO);
+  if (so) {
+    const d = /computador|pc|desktop/i.test(so[5]) ? "pc" : "celular";
+    mudarDestino(d);
+    const r = d === "pc" ? "Certo, agora os comandos rodam no computador." : "Certo, agora os comandos rodam no telefone.";
+    adicionar("jon", r);
+    falar(r, () => { if ($("#conversa-continua").checked) ouvir(); });
+    return;
+  }
+  mudarEstado("pensando", "PENSANDO…");
+  try {
+    const r = await fetch("/api/comando", { method: "POST", headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ texto: t, destino }) });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    const msg = adicionar("jon", j.resposta, j.fontes);
+    mudarEstado("pronto", "TOQUE PARA FALAR");
+    const link = (j.abrir || [])[0];
+    if (link) {
+      // comando feito pelo celular: abre no celular (Spotify, YouTube, WhatsApp...)
+      const b = document.createElement("a");
+      b.href = link.url; b.className = "abrir"; b.textContent = "▶ " + link.rotulo;
+      msg.appendChild(b);
+      let foi = false;
+      const ir = () => { if (!foi) { foi = true; location.href = link.url; } };
+      falar(j.resposta, ir);
+      setTimeout(ir, 3500);   // se a voz travar, abre mesmo assim
+    } else {
+      falar(j.resposta, () => { if ($("#conversa-continua").checked) ouvir(); });
+    }
+    atualizarEstado();
+  } catch (e) {
+    adicionar("jon", "Não consegui falar com o PC. Ele está ligado e com o Jon aberto?").classList.add("erro");
+    mudarEstado("erro", "SEM CONEXÃO");
+    setTimeout(() => mudarEstado("pronto", "TOQUE PARA FALAR"), 3000);
+  }
+}
+
+// ---------------- reconhecimento de voz ----------------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, ouvindo = false;
+function ouvir() {
+  if (!SR) {
+    texto.focus();
+    parcial.textContent = "Use o microfone do teclado para ditar 🎙";
+    return;
+  }
+  if (ouvindo) { rec && rec.stop(); return; }
+  speechSynthesis && speechSynthesis.cancel();
+  rec = new SR();
+  rec.lang = "pt-BR"; rec.interimResults = true; rec.continuous = false;
+  let final = "";
+  rec.onstart = () => { ouvindo = true; mic.classList.add("ouvindo"); mudarEstado("ouvindo", "OUVINDO…"); };
+  rec.onresult = e => {
+    let parc = "";
+    for (const res of e.results) { if (res.isFinal) final = res[0].transcript; else parc += res[0].transcript; }
+    parcial.textContent = final || parc;
+    nivel = Math.min(1, nivel + .5);
+  };
+  rec.onerror = e => { parcial.textContent = e.error === "not-allowed" ? "Permita o microfone para este site." : ""; };
+  rec.onend = () => {
+    ouvindo = false; mic.classList.remove("ouvindo");
+    if (final) enviar(final.replace(/^(ei |oi )?(jon|john|jhon)[,\s]*/i, ""));
+    else mudarEstado("pronto", "TOQUE PARA FALAR");
+  };
+  rec.start();
+}
+mic.addEventListener("click", ouvir);
+cv.addEventListener("click", ouvir);
+$("#form").addEventListener("submit", e => { e.preventDefault(); enviar(texto.value); });
+for (const c of document.querySelectorAll(".chip")) c.addEventListener("click", () => enviar(c.textContent));
+
+// ---------------- status do PC ----------------
+async function atualizarEstado() {
+  try {
+    const j = await (await fetch("/api/estado", { cache: "no-store" })).json();
+    $("#ponto").className = "ponto on";
+    $("#conexao").textContent = "PC ONLINE • " + j.hora;
+    $("#tocando").textContent = j.tocando && j.tocando !== "nada tocando" ? "♪ " + j.tocando : (j.ia ? "IA ativa" : "");
+  } catch (e) {
+    $("#ponto").className = "ponto off";
+    $("#conexao").textContent = "PC OFFLINE";
+  }
+}
+function acordar() { fetch("/api/acordar", { cache: "no-store" }).catch(() => {}); }
+acordar();
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { acordar(); atualizarEstado(); } });
+mic.addEventListener("pointerdown", acordar);
+cv.addEventListener("pointerdown", acordar);
+atualizarEstado();
+setInterval(() => { if (!document.hidden) atualizarEstado(); }, 20000);
+adicionar("jon", "Oi! Toque na esfera e fale, ou digite um comando. Posso pesquisar, tocar música, criar lembretes…");
+</script>
+</body>
+</html>

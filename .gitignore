@@ -1,0 +1,23 @@
+# ===== Dados pessoais do Jon (NUNCA subir) =====
+config.json
+memoria.json
+memoria.json.tmp
+rotinas.json
+recentes.json
+email_config.json
+spotify_client_id.txt
+.spotify_token_cache
+.cache
+*.log
+tailscale_status.txt
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ===== Sistema =====
+Thumbs.db
+desktop.ini
+.DS_Store
