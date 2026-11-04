@@ -1669,12 +1669,14 @@ class App(ctk.CTk):
 
     # ---------------- central: notificações | registro ----------------
     def trocar_aba(self, aba):
+        # o quadro com rolagem fica dentro de outro quadro: é esse de fora que precisa sumir/aparecer
+        notif = getattr(self.aba_notif, "_parent_frame", None) or self.aba_notif
         if aba == "REGISTRO":
-            self.aba_notif.pack_forget()
+            notif.pack_forget()
             self.aba_reg.pack(fill="both", expand=True)
         else:
             self.aba_reg.pack_forget()
-            self.aba_notif.pack(fill="both", expand=True)
+            notif.pack(fill="both", expand=True)
 
     def _piscar(self, frame, de=None, para=PAINEL2, passos=14, k=0):
         """Item novo acende e vai apagando (deixa a tela viva sem gastar quase nada)."""
@@ -2023,13 +2025,23 @@ class App(ctk.CTk):
         time.sleep(20)
         while True:
             try:
-                FILA.put(("atualizacao", atualizador.checar()))
+                r = atualizador.checar()
+                print(f"  (atualização: GitHub {r['sha'][:7]} • instalado {atualizador.estado().get('sha', '')[:7]} • "
+                      f"{'NOVA VERSÃO' if r['disponivel'] else 'em dia'})")
+                FILA.put(("atualizacao", r))
             except Exception as e:
+                print("  (atualização: não consegui olhar o GitHub:", e, ")")
                 FILA.put(("atualizacao", {"erro": str(e)[:120]}))
             self._checar_agora.wait(3 * 3600)
             self._checar_agora.clear()
 
     def _mostrar_info_atualizacao(self, r, pedido=False):
+        try:
+            self._mostrar_info_atualizacao2(r, pedido)
+        except Exception as e:
+            print("  (atualização: erro ao mostrar:", e, ")")
+
+    def _mostrar_info_atualizacao2(self, r, pedido=False):
         self._info_atualizacao = r
         if r.get("erro"):
             if pedido:
