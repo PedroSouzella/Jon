@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import time
+import urllib.error
 import urllib.request
 import zipfile
 
@@ -26,10 +27,30 @@ PROTEGIDOS = {"config.json", "memoria.json", "memoria.json.tmp", "rotinas.json",
 UA = {"User-Agent": "Jon-atualizador", "Accept": "application/vnd.github+json"}
 
 
+def _contextos():
+    """Primeiro os certificados do Windows; se falhar, o pacote certifi (às vezes falta um certificado do GitHub)."""
+    import ssl
+    yield None
+    try:
+        import certifi
+        yield ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        pass
+
+
 def _get(url, timeout=15):
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
+    import ssl
+    erro = None
+    for ctx in _contextos():
+        try:
+            req = urllib.request.Request(url, headers=UA)
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+                return r.read()
+        except urllib.error.URLError as e:
+            if not isinstance(getattr(e, "reason", None), ssl.SSLError):
+                raise
+            erro = e
+    raise erro
 
 
 def _json(url):
