@@ -18,7 +18,8 @@ PASTA = os.path.dirname(os.path.abspath(__file__))
 ARQ_ESTADO = os.path.join(PASTA, "atualizacao.json")
 ARQ_CONFIG = os.path.join(PASTA, "config.json")
 REPO_PADRAO = "Sabadini25/Jon"          # projeto principal; um fork usa config.json -> "repo_atualizacao"
-EXTENSOES = (".py", ".pyw", ".bat", ".ps1", ".ico", ".png", ".html", ".json", ".txt", ".md")
+EXTENSOES = (".py", ".pyw", ".bat", ".ps1", ".ico", ".png", ".jpg", ".svg", ".html", ".css", ".js", ".json", ".txt",
+             ".md", ".mp3", ".wav", ".xml", ".java")
 PROTEGIDOS = {"config.json", "memoria.json", "memoria.json.tmp", "rotinas.json", "recentes.json",
               "email_config.json", "spotify_client_id.txt", ".spotify_token_cache", "atualizacao.json",
               "assistente.log", "tailscale_status.txt", "tailscale_serve.txt", ".gitignore"}
