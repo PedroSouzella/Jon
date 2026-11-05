@@ -2089,7 +2089,12 @@ class App(ctk.CTk):
         r = self._info_atualizacao or {}
         j = ctk.CTkToplevel(self)
         j.title("Atualizar o Jon")
-        j.geometry("460x300")
+        # sempre no meio da janela do Jon (senão pode abrir fora da tela / em outro monitor)
+        x = self.winfo_rootx() + max(0, (self.winfo_width() - 460) // 2)
+        y = self.winfo_rooty() + max(0, (self.winfo_height() - 300) // 3)
+        j.geometry(f"460x300+{x}+{y}")
+        j.after(150, lambda: (j.lift(), j.focus_force(), j.attributes("-topmost", True),
+                              j.after(600, lambda: j.attributes("-topmost", False))))
         j.configure(fg_color=BG)
         j.transient(self)
         j.after(120, j.lift)
