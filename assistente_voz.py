@@ -41,6 +41,7 @@ import rotinas
 import extras
 import sistema
 import pesquisa
+import video
 
 # ===================== CONFIGURAÇÃO =====================
 TECLA_FALAR = "f9"          # tecla para segurar enquanto fala (ex.: "f9", "ctrl+alt+v", "scroll lock")
@@ -150,8 +151,30 @@ def _listar_atalhos():
     return lista
 
 
+def _esqueleto(p: str) -> str:
+    """'Som' da palavra, pra perdoar o reconhecimento de voz: 'streamer'/'streaming' ~ 'stremio'."""
+    p = re.sub(r"(ings?|ers?|s)$", "", p) if len(p) > 5 else p
+    p = p.replace("ph", "f").replace("ck", "c").replace("k", "c").replace("q", "c").replace("y", "i")
+    p = p.replace("w", "v").replace("z", "s").replace("x", "s").replace("h", "")
+    p = p[:1] + re.sub(r"[aeiou]", "", p[1:])
+    return re.sub(r"(.)\1+", r"\1", p)
+
+
+def _parecido(a: str, b: str) -> float:
+    import difflib
+    nota = difflib.SequenceMatcher(None, a, b).ratio()
+    if len(a) >= 4 and len(b) >= 4 and nota >= 0.55:     # o som só ajuda se a escrita já for parecida
+        ea, eb = _esqueleto(a), _esqueleto(b)
+        if len(ea) >= 3 and len(eb) >= 3:
+            som = difflib.SequenceMatcher(None, ea, eb).ratio()
+            if som >= 0.9:                               # só quando o "som" é praticamente o mesmo
+                nota = max(nota, som * 0.97)
+    return nota
+
+
 def achar_atalho(chave: str):
-    """Acha o atalho cujo nome mais parece com o que foi falado (tolera erros: 'mirrage' -> 'Mirage')."""
+    """Acha o atalho cujo nome mais parece com o que foi falado.
+    Tolera erros de digitação e de reconhecimento de voz: 'mirrage' -> 'Mirage', 'streamer' -> 'Stremio'."""
     import difflib
     alvo = re.sub(r"[^\w\s]", " ", normalizar(chave))
     alvo = re.sub(r"\s+", " ", alvo).strip()
@@ -162,15 +185,14 @@ def achar_atalho(chave: str):
         n = re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", nome)).strip()
         if not n:
             continue
-        nota = difflib.SequenceMatcher(None, alvo, n).ratio()
-        # cada palavra falada parecida com alguma palavra do atalho ("ac mirage", "creed mirage")
-        pal_a, pal_n = alvo.split(), n.split()
-        acertos = sum(1 for p in pal_a if any(difflib.SequenceMatcher(None, p, q).ratio() >= 0.8 for q in pal_n))
-        cobertura = acertos / len(pal_a)
-        if cobertura == 1 and len(pal_a) >= 1:
-            nota = max(nota, 0.85 + 0.1 * min(1.0, len(pal_a) / len(pal_n)))
         if alvo == n:
-            nota = 2.0
+            return caminho
+        nota = difflib.SequenceMatcher(None, alvo, n).ratio()
+        # cada palavra falada parecida (na escrita ou no som) com alguma palavra do atalho
+        pal_a, pal_n = alvo.split(), n.split()
+        sims = [max(_parecido(p, q) for q in pal_n) for p in pal_a]
+        if min(sims) >= 0.8:
+            nota = max(nota, 0.78 + 0.12 * (sum(sims) / len(sims)) + 0.07 * min(1.0, len(pal_a) / len(pal_n)))
         if nota > nota_melhor:
             melhor, nota_melhor = caminho, nota
     return melhor if nota_melhor >= 0.78 else None
@@ -187,6 +209,8 @@ def limpar_nome_app(nome: str) -> str:
     """'o aplicativo Hydra na área de trabalho' -> 'Hydra'."""
     n = unicodedata.normalize("NFKD", nome)
     n = "".join(c for c in n if not unicodedata.combining(c))
+    n = re.sub(r"^\s*((abre|abrir|abra|inicia|iniciar|executa|executar|liga|ligar|entra|entrar)\s+)+", " ", n,
+               flags=re.I)                       # "abrir abrir abrir o app X" (o reconhecimento repete)
     n = re.sub(ENCHIMENTO_APP, " ", n, flags=re.I)
     n = re.sub(r"^\s*(o|a|os|as|meu|minha)\s+", " ", n, flags=re.I)
     n = re.sub(r"\s+(na|no|da|do|de)$", "", re.sub(r"\s+", " ", n).strip(" ,.")).strip()
@@ -212,6 +236,8 @@ def abrir_app(nome: str):
             else:
                 print(f"  -> não achei {nome} no celular nem no computador")
         return
+    if chave in video.FALADO or chave.split(" ")[0] in video.FALADO:
+        video.ultimo = (video.FALADO.get(chave) or video.FALADO[chave.split(" ")[0]], time.time())
     alvo = APPS.get(chave)
     if alvo:
         print(f"  -> abrindo {chave}")
@@ -616,6 +642,50 @@ def comando_midia(f: str) -> bool:
     return True
 
 
+def controle_video(f: str) -> bool:
+    """Filmes/vídeos: 'coloca o Stremio em tela cheia', 'pausa o filme', 'avança 30 segundos', 'próximo episódio'.
+    Sem dizer o player, só vale se um vídeo estiver na frente (ex.: você segurou F9 vendo Netflix)."""
+    if re.search(r"\b(musica|musicas|spotify|playlist|curtidas)\b", f):
+        return False
+    try:
+        pedido_ = video.entender(f)
+    except Exception:
+        return False
+    if not pedido_:
+        return False
+    acao, vezes, player = pedido_
+    tem_alvo = bool(re.search(video.ALVO, f))
+    try:
+        foco = video.em_foco()
+    except Exception:
+        foco = None
+    recente = video.ultimo if video.ultimo and time.time() - video.ultimo[1] < 25 else None
+    if not tem_alvo and not foco:
+        if not recente:
+            return False                  # ex.: "tela cheia" com o Jon na frente = modo Big Picture
+        player = recente[0]               # "abre o Stremio" + "coloca em tela cheia": vale pro Stremio
+        for _ in range(20):               # espera a janela dele aparecer
+            if video.achar(player)[0]:
+                break
+            time.sleep(0.5)
+        if time.time() - recente[1] < 6:
+            time.sleep(2.5)               # acabou de abrir: ainda está carregando
+    # "abre o Stremio e coloca em tela cheia": abre primeiro, espera e depois faz
+    if player and re.match(r"^(abre|abrir|abra|inicia|iniciar)\b", f):
+        h, _ = video.achar(player)
+        if not h:
+            abrir_app(player)
+            for _ in range(20):
+                time.sleep(0.5)
+                h, _ = video.achar(player)
+                if h:
+                    break
+            time.sleep(2.5)               # o player ainda está carregando
+    resp = video.controlar(acao, vezes, player)
+    print(f"  -> {resp}")
+    return True
+
+
 def avisar(texto: str):
     """Lembrete/rotina disparou: bipa, mostra e fala."""
     for f_, d in ((880, 150), (1100, 150), (880, 150)):
@@ -705,6 +775,10 @@ def modo_tela(abrir: bool):
     return False
 
 
+def checar_atualizacao():
+    return False
+
+
 def esconder_interface():
     return False
 
@@ -720,6 +794,15 @@ INTERFACE = r"\b(interfa\w*|interfe\w*|painel|hud|sua tela|sua janela|seu app|se
 def comandos_jarvis(f: str, original: str) -> bool:
     """Hora, data, clima, briefing, status do sistema, lembretes/timers/rotinas, pastas, print, fechar apps."""
     resp = None
+    # procurar atualização do Jon no GitHub
+    if re.search(r"\b(atualiza|atualizar|atualize|atualizacao|atualizacoes|update)\b", f) and \
+            re.search(r"\b(jon|voce|se|sistema|assistente|versao|tem|procura|procurar|checa|checar|verifica)\b", f) \
+            and not re.search(r"\b(windows|driver|steam|spotify|chrome|jogo)\b", f):
+        if checar_atualizacao():
+            resp = "Vou olhar no GitHub se tem versão nova."
+            print(f"  -> {resp}")
+            falar(resp)
+            return True
     # modo Big Picture (tela cheia estilo Steam)
     if re.search(r"\b(big picture|bigpicture|big pic\w*|modo (tela cheia|imersivo|tv|televisao|cinema|sofa))\b", f) \
             or re.match(r"^(tela cheia|abre (a )?tela cheia|modo grande)$", f):
@@ -871,7 +954,49 @@ CTL_NO_FIM = (r"^(?P<pedido>.+?)[\s,]+(?:e\s+)?(?P<ctl>(?:(?:deixa|deixar|deixe|
               r"(?:modo\s+)?(?:repeat|repet\w*|loop\w*|aleatori\w*|shuffle)\b.*)$")
 
 
+VERBOS_COMANDO = (r"(abre|abrir|abra|fecha|fechar|feche|toca|tocar|toque|coloca|colocar|coloque|bota|botar|poe|por|"
+                  r"pausa|pausar|pause|para|parar|pare|continua|continuar|continue|despausa|despausar|da play|"
+                  r"dar play|de play|play|volta|voltar|volte|avanca|avancar|avance|adianta|adiantar|pula|pular|"
+                  r"pule|passa|passar|aumenta|aumentar|abaixa|abaixar|diminui|diminuir|muta|mutar|deixa|deixar|"
+                  r"liga|ligar|desliga|desligar|tira|tirar|pesquisa|pesquisar|procura|procurar|busca|buscar|"
+                  r"me lembra|lembra|mostra|mostrar|minimiza|minimizar|maximiza|maximizar|bloqueia|curte|curtir|"
+                  r"repete|repetir|sai|sair|entra|entrar|recomeca|recomecar|reinicia|reiniciar|comeca|sobe|baixa|"
+                  r"ativa|ativar|desativa|desativar|seleciona|escolhe|inicia|iniciar|executa|joga|manda|mande)")
+SEPARADOR = (r"\s*[,;]\s*(?:e\s+)?(?:depois\s+|em seguida\s+|entao\s+)?|"
+             r"\s+(?:e\s+(?:depois\s+|em seguida\s+|tambem\s+|ja\s+|logo\s+)?|depois\s+|em seguida\s+|entao\s+)")
+
+
+def dividir_comandos(texto: str):
+    """'bota tela cheia e dá play' -> ['bota tela cheia', 'dá play'].
+    Só corta quando o pedaço seguinte começa com um verbo de comando (não corta 'toca Simon e Garfunkel')."""
+    pedacos, inicio = [], 0
+    for m in re.finditer(SEPARADOR, texto, flags=re.I):
+        resto = normalizar(texto[m.end():])
+        resto = re.sub(r"^(jon|john|ai|tambem|ja)\s+", "", resto)
+        if re.match(VERBOS_COMANDO + r"\b", resto) and \
+                not re.match(r"(deixa|deixar|coloca|colocar|bota|botar|poe)\s+(ela\s+|a musica\s+)?(no|em|com|de|na)?\s*"
+                             r"(modo\s+)?(repeat|repet|loop|aleatori|shuffle)", resto):   # 'toca X e deixa no repeat' tem caminho próprio
+            pedacos.append(texto[inicio:m.start()].strip(" ,"))
+            inicio = m.end()
+    pedacos.append(texto[inicio:].strip(" ,"))
+    return [p for p in pedacos if p]
+
+
 def executar(frase: str):
+    original = re.sub(r"^\s*(ei|oi|hey|ok|e ai|fala)?[\s,]*(jon|john|jhon|jonh|jonny|djon)\b[\s,.!:]*", "",
+                      frase.strip(), flags=re.I).strip() or frase.strip()
+    partes = dividir_comandos(original)
+    if len(partes) > 1:
+        print(f"  ({len(partes)} comandos: " + " → ".join(f'“{p}”' for p in partes) + ")")
+        for k, parte in enumerate(partes):
+            if k:
+                time.sleep(0.9)            # dá tempo do comando anterior acontecer (abrir app, tela cheia...)
+            executar_um(parte)
+        return
+    executar_um(original)
+
+
+def executar_um(frase: str):
     original = frase.strip()
     # "Jon, toca X" / "ei Jon abre o Discord" -> tira o nome
     original = re.sub(r"^\s*(ei|oi|hey|ok|e ai|fala)?[\s,]*(jon|john|jhon|jonh|jonny|djon)\b[\s,.!:]*", "",
@@ -894,6 +1019,9 @@ def executar(frase: str):
         bip(600, 300)
         time.sleep(0.4)
         os._exit(0)
+
+    if controle_video(f):
+        return
 
     if comandos_jarvis(f, original):
         return

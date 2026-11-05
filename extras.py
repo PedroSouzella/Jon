@@ -368,11 +368,7 @@ def otimizar_pc() -> str:
     except Exception:
         pass
 
-    # 4. Esvaziar Lixeira
-    try:
-        ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, 7)
-    except Exception:
-        pass
+    # (a Lixeira NÃO é esvaziada aqui: apagar da Lixeira não tem volta. Só com "esvazia a lixeira".)
 
     mb_temp = bytes_livres / (1024 * 1024)
     ram_ganha = max(0.0, ram_antes - ram_depois)
@@ -381,7 +377,7 @@ def otimizar_pc() -> str:
         partes.append(f"Removi {arqs_apagados} itens temporários ({mb_temp:.0f} megas)" if mb_temp >= 1 else f"Removi {arqs_apagados} arquivos temporários")
     if ram_ganha >= 0.15:
         partes.append(f"liberei {ram_ganha * 1024:.0f} megas de memória RAM")
-    partes.append("limpei o cache de rede e a lixeira.")
+    partes.append("limpei o cache de rede. A lixeira continua intacta — se quiser, diga \"esvazia a lixeira\".")
     return " ".join(partes)
 
 
@@ -434,6 +430,16 @@ def comando_powershell(cmd: str) -> str:
     cmd = (cmd or "").strip()
     if not cmd:
         return "Nenhum comando informado."
+    # Desligado por padrão: a IA local pode entender errado e rodar algo que você não pediu.
+    # Para ligar (por sua conta e risco): no config.json, "permitir_powershell": true
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json"), encoding="utf-8") as f:
+            liberado = bool(json.load(f).get("permitir_powershell"))
+    except Exception:
+        liberado = False
+    if not liberado:
+        print(f"  (a IA quis rodar no PowerShell: {cmd[:120]} — bloqueado, está desligado nas configurações)")
+        return "Esse tipo de comando avançado está desligado por segurança, senhor."
     proibidos = r"\b(format-volume|clear-disk|remove-item\s+.*-recurse\s+.*[c-z]:\\|del\s+/s|rd\s+/s\s+[c-z]:\\|cipher\s+/w|reg\s+delete)\b"
     if re.search(proibidos, cmd, flags=re.I):
         return "Por segurança, bloqueei esse comando destrutivo, senhor."
