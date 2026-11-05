@@ -14,6 +14,7 @@ import sys
 import threading
 import time
 import traceback
+from versao import VERSAO, VERSAO_NOME
 
 PASTA = os.path.dirname(os.path.abspath(__file__))
 os.chdir(PASTA)
@@ -1134,7 +1135,7 @@ class App(ctk.CTk):
         av.FALAR_RESPOSTAS = self.cfg["falar"]
         self.motor = av.Motor(self.cfg["tecla"])
 
-        self.title("J O N")
+        self.title(f"J O N — v{VERSAO}")
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.geometry(f"{min(1360, sw - 40)}x{min(820, sh - 70)}+10+5")
         self.minsize(1040, 640)
@@ -1205,7 +1206,7 @@ class App(ctk.CTk):
         self.lbl_logo.pack(side="left", padx=(0, 12))
         tt = ctk.CTkFrame(logo, fg_color="transparent")
         tt.pack(side="left")
-        ctk.CTkLabel(tt, text="J  O  N", font=(MONO, 18, "bold"), text_color=LILAS, height=22).pack(anchor="w")
+        ctk.CTkLabel(tt, text=f"J  O  N   v{VERSAO}", font=(MONO, 18, "bold"), text_color=LILAS, height=22).pack(anchor="w")
         ctk.CTkLabel(tt, text="SEU ASSISTENTE PESSOAL — UM SISTEMA BEM INTELIGENTE", font=(MONO, 9),
                      text_color=MUDO, height=12).pack(anchor="w")
 
