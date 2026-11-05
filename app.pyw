@@ -2534,12 +2534,13 @@ class App(ctk.CTk):
         ultimo = None
         while True:
             ok = ia_local.disponivel()
-            if ok != ultimo:
+            estado_ia = (ok, ia_local.MODELO)
+            if estado_ia != ultimo:
                 FILA.put(("ia", ok))
                 if ok:
                     ia_local.aquecer()
-                ultimo = ok
-            time.sleep(15)
+                ultimo = estado_ia
+            time.sleep(10)
 
     def _ler_sistema(self):
         n = 0

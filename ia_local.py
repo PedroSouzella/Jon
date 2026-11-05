@@ -15,8 +15,9 @@ import urllib.request
 PASTA = os.path.dirname(os.path.abspath(__file__))
 ARQ_MEMORIA = os.path.join(PASTA, "memoria.json")
 OLLAMA = "http://127.0.0.1:11434"
-MODELO = "qwen3.5:4b"
-MANTER = "45m"            # tempo que a IA fica pronta na placa de vídeo depois do último uso          # troque por "qwen3.5:9b" se quiser mais inteligente (e mais lento)
+MODELOS_PREFERIDOS = ["gemma3:12b", "gemma3:4b", "qwen3.5:4b"]
+MODELO = "gemma3:12b"
+MANTER = "45m"            # tempo que a IA fica pronta na placa de vídeo depois do último uso
 
 ACOES = ["abrir_app", "tocar_spotify", "pesquisar_spotify", "spotify_controle", "lembrete_rotina", "clima",
          "status_sistema", "youtube", "pesquisar_google", "midia", "digitar", "responder", "ensinar_apelido",
@@ -99,10 +100,18 @@ def _post(caminho, dados, timeout=60):
 
 
 def disponivel() -> bool:
+    global MODELO
     try:
         with urllib.request.urlopen(OLLAMA + "/api/tags", timeout=2) as r:
             nomes = [x["name"] for x in json.loads(r.read().decode("utf-8")).get("models", [])]
-        return any(n == MODELO or n.startswith(MODELO.split(":")[0] + ":" + MODELO.split(":")[1]) for n in nomes)
+        for pref in MODELOS_PREFERIDOS:
+            if any(n == pref or n.startswith(pref + "-") for n in nomes):
+                MODELO = pref
+                return True
+        if nomes:
+            MODELO = nomes[0]
+            return True
+        return False
     except Exception:
         return False
 
@@ -201,13 +210,15 @@ def interpretar(frase: str, historico=None) -> dict:
         {"role": "system", "content": INSTRUCOES.replace("{NOME}", _nome_dono()) + "\n\n" + memoria_txt},
         {"role": "user", "content": frase},
     ]
-    dados = {"model": MODELO, "messages": msgs, "stream": False, "format": ESQUEMA, "think": False,
+    dados = {"model": MODELO, "messages": msgs, "stream": False, "format": ESQUEMA,
              "keep_alive": MANTER, "options": {"temperature": 0.1, "num_ctx": 4096}}
+    if "qwen3" in MODELO or "deepseek" in MODELO:
+        dados["think"] = False
     t0 = time.time()
     try:
         r = _post("/api/chat", dados)
     except urllib.error.HTTPError as e:
-        if e.code == 400:  # versão do Ollama/modelo sem suporte a "think"
+        if e.code == 400 and "think" in dados:
             dados.pop("think", None)
             r = _post("/api/chat", dados)
         else:
@@ -221,11 +232,12 @@ def interpretar(frase: str, historico=None) -> dict:
 
 # ---------------------- CHAT POR TEXTO ----------------------
 
-INSTRUCOES_CHAT = """Você é o Jon, o assistente pessoal de {NOME} (brasileiro), rodando no PC dele, com personalidade inspirada no J.A.R.V.I.S. (elegante, prestativo, inteligente e direto).
+INSTRUCOES_CHAT = """Você é o Jon, o assistente pessoal e agente local do PC de {NOME} (brasileiro), com personalidade inspirada no J.A.R.V.I.S. (elegante, prestativo, inteligente e direto).
+Você roda 100% localmente na máquina dele, sem burocracia e sem sermões desnecessários.
 Agora vocês estão conversando por TEXTO, num chat. Responda sempre em português do Brasil, de forma clara,
-educada e objetiva. Pode dar respostas mais completas quando a pergunta pedir (explicações, listas, passo a passo,
-textos, código), mas sem enrolar. Não use tabelas nem markdown pesado; listas simples com "- " estão ok.
-Se não souber algo ou se precisar de informação atual da internet, diga isso com honestidade.
+direta e completa. Pode dar explicações detalhadas, código completo, scripts, automações e passo a passo sem enrolar.
+Você TAMBÉM tem acesso ao PC dele: quando ele pedir para criar pastas/arquivos, otimizar o PC, abrir/fechar programas,
+organizar downloads ou rodar comandos, o sistema executa diretamente.
 Agora é {DATA}."""
 
 
@@ -265,12 +277,14 @@ def conversar(historico, ao_pedaco=None, maximo=24) -> str:
         sistema += "\n\nO que você sabe sobre ele: " + " | ".join(m["fatos"][-40:])
     msgs = [{"role": "system", "content": sistema}] + \
            [{"role": x["role"], "content": x["content"]} for x in historico[-maximo:]]
-    dados = {"model": MODELO, "messages": msgs, "stream": True, "think": False, "keep_alive": MANTER,
+    dados = {"model": MODELO, "messages": msgs, "stream": True, "keep_alive": MANTER,
              "options": {"temperature": 0.7, "num_ctx": 8192}}
+    if "qwen3" in MODELO or "deepseek" in MODELO:
+        dados["think"] = False
     try:
         return _chat_stream(dados, ao_pedaco)
     except urllib.error.HTTPError as e:
-        if e.code == 400:  # versão do Ollama/modelo sem suporte a "think"
+        if e.code == 400 and "think" in dados:
             dados.pop("think", None)
             return _chat_stream(dados, ao_pedaco)
         raise
