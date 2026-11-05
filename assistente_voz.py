@@ -889,6 +889,26 @@ def comandos_jarvis(f: str, original: str) -> bool:
         resp = extras.minimizar_tudo()
     elif re.search(r"\b(bloqueia|trava|tranca)\s+(o\s+)?(pc|computador|tela)\b", f):
         resp = extras.bloquear_pc()
+    # otimizar PC / limpar memória / limpar arquivos temporários / esvaziar lixeira
+    elif re.search(r"\b(otimiza\w*|limpa\w*|libera\w*|acelera\w*|desfragmenta\w*|turbo)\b.*\b(pc|computador|sistema|memoria|ram|arquivos temporarios|cache|disco)\b", f) \
+            or re.match(r"^(otimizar|otimiza|limpar pc|limpar computador|liberar memoria|liberar ram|limpar memoria)$", f):
+        resp = extras.otimizar_pc()
+    elif re.search(r"\b(esvazia\w*|limpa\w*)\s+(a\s+)?lixeira\b", f):
+        resp = extras.esvaziar_lixeira()
+    elif re.search(r"\b(organiza\w*|arruma\w*)\s+(a\s+|os\s+|meus\s+)?(pasta\s+(de\s+)?)?(downloads?|area de trabalho|desktop|documentos)\b", f):
+        qual = "desktop" if ("area" in f or "desktop" in f) else "documentos" if "documento" in f else "downloads"
+        resp = extras.organizar_pasta(qual)
+    elif re.search(r"\b(quais|que)\s+(programas?|processos?|apps?)\s+(estao\s+|ta\s+)?(pesados?|gastando|consumindo|usando)\b|\bprocessos pesados\b|\bo que (ta|esta) deixando o pc lento\b", f):
+        resp = extras.processos_pesados()
+    elif re.match(r"^(cria|criar|crie|nova)\s+(uma\s+|a\s+)?pasta\s+(?:chamada\s+|com\s+o\s+nome\s+|de\s+nome\s+)?(.+)$", f):
+        resto_p = re.match(r"^(?:cria|criar|crie|nova)\s+(?:uma\s+|a\s+)?pasta\s+(?:chamada\s+|com\s+o\s+nome\s+|de\s+nome\s+)?(.+)$", original, flags=re.I).group(1).strip()
+        onde_p = "desktop"
+        m_onde = re.search(r"\s+(?:na|no|em|dentro\s+de|dentro\s+da|nos|nas)\s+(area de trabalho|desktop|documentos|downloads|imagens|fotos|videos|musicas|disco\s+[a-z])$", normalizar(resto_p))
+        if m_onde:
+            onde_p = m_onde.group(1)
+            resto_p = resto_p[:m_onde.start()].strip()
+        resto_p = re.sub(r"^(chamada|com nome|de nome)\s+", "", resto_p, flags=re.I).strip(" \"'")
+        resp = extras.criar_pasta(resto_p, onde_p)
     # pesquisa de verdade (busca + resumo falado)
     elif "spotify" not in f and "youtube" not in f and (
             re.match(r"^(me fala sobre|me fale sobre|me explica|me explique|pesquisa pra mim|pesquisa para mim|"
@@ -1156,17 +1176,23 @@ def executar_um(frase: str):
     mandar_pro_claude(original)
 
 
-# Motor de voz que fica SEMPRE ligado: antes cada resposta abria um PowerShell novo (1–3 s de atraso).
+# Motor de voz neural estilo J.A.R.V.I.S. (edge-tts: pt-BR-AntonioNeural grave) + fallback Windows Speech.
+VOZ_JARVIS = "pt-BR-AntonioNeural"
+VOZ_VELOCIDADE = "+6%"
+VOZ_TOM = "-4Hz"
+
 _VOZ_SCRIPT = (
     "[Console]::InputEncoding=[Text.Encoding]::UTF8;"
     "Add-Type -AssemblyName System.Speech;"
     "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;"
     "try{$s.SelectVoiceByHints('NotSet','NotSet',0,[Globalization.CultureInfo]'pt-BR')}catch{};"
-    "$s.Rate=2;$s.SetOutputToDefaultAudioDevice();"
-    "while(($l=[Console]::In.ReadLine()) -ne $null){ $s.SpeakAsyncCancelAll(); if($l){ $s.SpeakAsync($l) | Out-Null } }"
+    "try{$s.Rate=2;$s.SetOutputToDefaultAudioDevice()}catch{};"
+    "while(($l=[Console]::In.ReadLine()) -ne $null){ try{$s.SpeakAsyncCancelAll(); if($l){ $s.SpeakAsync($l) | Out-Null }}catch{} }"
 )
 _voz = None
 _voz_trava = threading.Lock()
+_fala_id = 0
+_tts_cache_pc = {}
 
 
 def _motor_voz():
@@ -1177,32 +1203,105 @@ def _motor_voz():
     return _voz
 
 
+def _sintetizar_jarvis(texto: str) -> bytes:
+    if texto in _tts_cache_pc:
+        return _tts_cache_pc[texto]
+    import asyncio
+    import edge_tts
+
+    async def _gerar():
+        com = edge_tts.Communicate(texto, voice=VOZ_JARVIS, rate=VOZ_VELOCIDADE, pitch=VOZ_TOM)
+        partes = []
+        async for chunk in com.stream():
+            if chunk["type"] == "audio":
+                partes.append(chunk["data"])
+        return b"".join(partes)
+
+    dados = asyncio.run(_gerar())
+    if dados:
+        if len(_tts_cache_pc) > 80:
+            _tts_cache_pc.clear()
+        _tts_cache_pc[texto] = dados
+    return dados
+
+
+def _tocar_mp3_jarvis(dados: bytes, meu_id: int) -> bool:
+    import ctypes
+    import tempfile
+    if not dados or meu_id != _fala_id:
+        return False
+    fd, caminho = tempfile.mkstemp(prefix="jon_voz_", suffix=".mp3")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(dados)
+        winmm = ctypes.windll.winmm
+        alias = f"jarvis_{meu_id}"
+        winmm.mciSendStringW(f'open "{caminho}" type mpegvideo alias {alias}', None, 0, 0)
+        try:
+            winmm.mciSendStringW(f"play {alias}", None, 0, 0)
+            buf = ctypes.create_unicode_buffer(64)
+            while meu_id == _fala_id:
+                winmm.mciSendStringW(f"status {alias} mode", buf, 64, 0)
+                if buf.value.strip().lower() != "playing":
+                    break
+                time.sleep(0.05)
+        finally:
+            winmm.mciSendStringW(f"stop {alias}", None, 0, 0)
+            winmm.mciSendStringW(f"close {alias}", None, 0, 0)
+        return True
+    finally:
+        try:
+            os.remove(caminho)
+        except OSError:
+            pass
+
+
 def preparar_voz():
-    """Liga o motor de voz em segundo plano (chamado quando o Jon abre)."""
+    """Pré-aquece o motor de voz neural J.A.R.V.I.S. em segundo plano."""
     def ligar():
-        with _voz_trava:
-            _motor_voz()
+        try:
+            _sintetizar_jarvis("Sistemas online.")
+        except Exception:
+            with _voz_trava:
+                _motor_voz()
     threading.Thread(target=ligar, daemon=True).start()
 
 
 def falar(texto: str):
-    """Fala em voz alta com a voz do Windows. Uma fala nova interrompe a anterior."""
-    global _voz
+    """Fala em voz alta com a voz neural J.A.R.V.I.S. (uma fala nova interrompe a anterior)."""
+    global _voz, _fala_id
     if remoto():
         _ctx.falas.append(texto)          # pedido do celular: a resposta volta pro celular
         return
     if not FALAR_RESPOSTAS or not texto:
         return
-    linha = re.sub(r"[\r\n]+", " ", texto)[:500] + "\n"
-    with _voz_trava:
-        for _ in range(2):
-            try:
-                p = _motor_voz()
-                p.stdin.write(linha.encode("utf-8"))
-                p.stdin.flush()
+    limpo = re.sub(r"[\r\n]+", " ", texto).strip()[:500]
+    if not limpo:
+        return
+    _fala_id += 1
+    meu_id = _fala_id
+
+    def rodar():
+        global _voz
+        try:
+            dados = _sintetizar_jarvis(limpo)
+            if _tocar_mp3_jarvis(dados, meu_id):
                 return
-            except Exception:
-                _voz = None
+        except Exception:
+            pass
+        # Fallback: voz nativa do Windows se estiver sem internet ou sem edge-tts
+        linha = limpo + "\n"
+        with _voz_trava:
+            for _ in range(2):
+                try:
+                    p = _motor_voz()
+                    p.stdin.write(linha.encode("utf-8"))
+                    p.stdin.flush()
+                    return
+                except Exception:
+                    _voz = None
+
+    threading.Thread(target=rodar, daemon=True).start()
 
 
 def executar_acao(a: dict, frase_original: str = ""):
@@ -1276,6 +1375,30 @@ def executar_acao(a: dict, frase_original: str = ""):
         print("  -> " + extras.clima(txt, amanha="amanha" in normalizar(frase_original)))
     elif tipo_acao == "status_sistema":
         resp = sistema.resumo_falado()
+    elif tipo_acao == "criar_pasta":
+        resp = extras.criar_pasta(txt, a.get("onde") or "desktop")
+        print(f"  -> {resp}")
+    elif tipo_acao == "criar_arquivo":
+        resp = extras.criar_arquivo(txt, a.get("conteudo") or "", a.get("onde") or "desktop")
+        print(f"  -> {resp}")
+    elif tipo_acao == "organizar_pasta":
+        resp = extras.organizar_pasta(txt or a.get("onde") or "downloads")
+        print(f"  -> {resp}")
+    elif tipo_acao == "otimizar_pc":
+        resp = extras.otimizar_pc()
+        print(f"  -> {resp}")
+    elif tipo_acao == "esvaziar_lixeira":
+        resp = extras.esvaziar_lixeira()
+        print(f"  -> {resp}")
+    elif tipo_acao == "processos_pesados":
+        resp = extras.processos_pesados()
+        print(f"  -> {resp}")
+    elif tipo_acao == "instalar_programa":
+        resp = extras.instalar_programa(txt)
+        print(f"  -> {resp}")
+    elif tipo_acao == "comando_powershell":
+        resp = extras.comando_powershell(txt)
+        print(f"  -> {resp}")
     elif tipo_acao == "responder":
         pass
     else:

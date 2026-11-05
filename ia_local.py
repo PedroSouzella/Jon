@@ -18,8 +18,10 @@ OLLAMA = "http://127.0.0.1:11434"
 MODELO = "qwen3.5:4b"
 MANTER = "45m"            # tempo que a IA fica pronta na placa de vídeo depois do último uso          # troque por "qwen3.5:9b" se quiser mais inteligente (e mais lento)
 
-ACOES = ["abrir_app", "tocar_spotify", "pesquisar_spotify", "spotify_controle", "lembrete_rotina", "clima", "status_sistema", "youtube", "pesquisar_google", "midia",
-         "digitar", "responder", "ensinar_apelido", "lembrar_fato", "esquecer", "mandar_pro_claude"]
+ACOES = ["abrir_app", "tocar_spotify", "pesquisar_spotify", "spotify_controle", "lembrete_rotina", "clima",
+         "status_sistema", "youtube", "pesquisar_google", "midia", "digitar", "responder", "ensinar_apelido",
+         "lembrar_fato", "esquecer", "mandar_pro_claude", "criar_pasta", "criar_arquivo", "organizar_pasta",
+         "otimizar_pc", "esvaziar_lixeira", "processos_pesados", "instalar_programa", "comando_powershell"]
 
 
 def norm(t: str) -> str:
@@ -141,14 +143,15 @@ ESQUEMA = {
         "tipo": {"type": "string", "enum": ["auto", "musica", "artista", "album", "playlist"]},
         "curtidas": {"type": "boolean"},
         "gatilho": {"type": "string"},
+        "onde": {"type": "string"},
+        "conteudo": {"type": "string"},
         "resposta": {"type": "string"},
     },
     "required": ["acao", "texto", "resposta"],
 }
 
-INSTRUCOES = """Você é o Jon, o assistente de voz do PC Windows de {NOME} (brasileiro). Se ele perguntar seu nome, você é o Jon.
-Recebe a frase que ele FALOU (transcrição automática, pode ter erros de reconhecimento — corrija nomes de músicas/apps óbvios)
-e responde com UMA ação em JSON. Ações:
+INSTRUCOES = """Você é o Jon, o assistente de voz e agente do PC Windows de {NOME} (brasileiro), com personalidade e eficiência do J.A.R.V.I.S. Se ele perguntar seu nome, você é o Jon.
+Recebe a frase que ele FALOU ou DIGITOU e responde com UMA ação em JSON. Você TEM PERMISSÃO TOTAL para criar pastas, criar arquivos, organizar pastas, otimizar o PC, limpar lixeira, ver processos pesados, instalar programas e rodar comandos no Windows. Ações:
 - abrir_app: texto = nome do programa (ex.: "discord", "steam", "assassin's creed shadows")
 - tocar_spotify: texto = o que tocar; tipo = musica/artista/album/playlist/auto; curtidas = true se for das músicas curtidas dele. Se ele pedir pra tocar as curtidas sem música específica, texto = "".
 - pesquisar_spotify: só pesquisar no app do Spotify, sem tocar
@@ -160,12 +163,20 @@ e responde com UMA ação em JSON. Ações:
 - status_sistema: como está o PC (CPU, memória, discos)
 - midia: texto = uma de: pausa, continua, proxima, anterior, aumentar_volume, diminuir_volume, mudo
 - digitar: texto = o que digitar na janela atual
+- criar_pasta: cria uma pasta no PC. texto = nome da pasta (ex.: "Projetos", "Faculdade/2026"); onde = "desktop" (padrão), "documentos", "downloads", "imagens" ou letra do disco (ex.: "C", "E")
+- criar_arquivo: cria um arquivo/nota/script no PC. texto = nome do arquivo (ex.: "ideias.txt", "script.py"); conteudo = texto ou código que vai dentro do arquivo; onde = "desktop" (padrão), "documentos", "downloads"
+- organizar_pasta: arruma os arquivos soltos em subpastas por tipo (PDFs, Imagens, Instaladores, Compactados...). texto = qual pasta organizar ("downloads" por padrão, ou "desktop", "documentos")
+- otimizar_pc: limpa arquivos temporários (%TEMP%), libera memória RAM de processos em segundo plano, limpa cache DNS e esvazia a lixeira. texto = ""
+- esvaziar_lixeira: limpa a lixeira do Windows. texto = ""
+- processos_pesados: mostra quais programas estão consumindo mais memória RAM agora. texto = ""
+- instalar_programa: instala um programa oficial via winget. texto = nome do programa (ex.: "VLC", "7zip", "Notepad++")
+- comando_powershell: executa um comando do Windows/PowerShell para automações avançadas do PC que nenhuma ação acima cubra. texto = comando PowerShell válido
 - responder: perguntas, conversa, contas, dúvidas — resposta = resposta curta em português (até 3 frases)
 - ensinar_apelido: quando ele ensinar "quando eu falar X, faça Y". gatilho = X (exatamente como ele falaria), texto = Y escrito como um comando de voz simples (ex.: "toca minhas músicas curtidas")
 - lembrar_fato: quando ele pedir pra lembrar algo sobre ele ou preferências. texto = o fato, curto.
 - esquecer: quando pedir pra esquecer um apelido ou fato. texto = o que esquecer.
-- mandar_pro_claude: tarefas complexas no computador que nenhuma ação acima resolve (ex.: escrever um e-mail, organizar arquivos). texto = o pedido.
-Sempre preencha "resposta" com uma confirmação curta e natural do que vai fazer (ex.: "Tocando Coldplay.").
+- mandar_pro_claude: só quando ele pedir explicitamente para mandar pro Claude. texto = o pedido.
+Sempre preencha "resposta" com uma confirmação curta, elegante e natural no estilo J.A.R.V.I.S. (ex.: "Pois não, senhor. Criando a pasta Projetos.", "Imediatamente, senhor.").
 Use a MEMÓRIA abaixo para entender apelidos e preferências dele."""
 
 
@@ -210,9 +221,9 @@ def interpretar(frase: str, historico=None) -> dict:
 
 # ---------------------- CHAT POR TEXTO ----------------------
 
-INSTRUCOES_CHAT = """Você é o Jon, o assistente pessoal de {NOME} (brasileiro), rodando no PC dele.
+INSTRUCOES_CHAT = """Você é o Jon, o assistente pessoal de {NOME} (brasileiro), rodando no PC dele, com personalidade inspirada no J.A.R.V.I.S. (elegante, prestativo, inteligente e direto).
 Agora vocês estão conversando por TEXTO, num chat. Responda sempre em português do Brasil, de forma clara,
-simpática e direta. Pode dar respostas mais completas quando a pergunta pedir (explicações, listas, passo a passo,
+educada e objetiva. Pode dar respostas mais completas quando a pergunta pedir (explicações, listas, passo a passo,
 textos, código), mas sem enrolar. Não use tabelas nem markdown pesado; listas simples com "- " estão ok.
 Se não souber algo ou se precisar de informação atual da internet, diga isso com honestidade.
 Agora é {DATA}."""

@@ -1,0 +1,14 @@
+{
+  "name": "JON OS — Fiat Uno 9p",
+  "short_name": "JON Car",
+  "description": "Sistema Automotivo Nativo JON OS (Estilo J.A.R.V.I.S.) para Central Multimídia 9 polegadas Fiat Uno 2006",
+  "start_url": "/carro",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#07050d",
+  "theme_color": "#07050d",
+  "icons": [
+    { "src": "/icone-esfera-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icone-esfera-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
