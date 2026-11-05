@@ -66,6 +66,11 @@ def rede_local() -> bool:
     return bool(_config().get("servidor_rede_local"))
 
 
+def modo_carro() -> bool:
+    """Central multimídia do carro. Desligue com "modo_carro": false no config.json."""
+    return _config().get("modo_carro", True) is not False
+
+
 def _host_ok(h: str) -> bool:
     """Só aceita pedidos endereçados ao próprio PC ou ao Tailscale (bloqueia sites tentando mandar comandos)."""
     h = (h or "").lower().split(":")[0].strip("[]")
@@ -134,8 +139,17 @@ class Handler(BaseHTTPRequestHandler):
                  "/icone-esfera-512.png": ("icone-esfera-512.png", "image/png"),
                  "/apple-touch-icon.png": ("icone-esfera-180.png", "image/png"),
                  "/favicon.ico": ("icone-esfera-192.png", "image/png")}
+        if not modo_carro() and ("carro" in caminho or caminho in ("/bem_vindo.mp3", "/camera_re.mp3")):
+            return self._resp(404, {"erro": "modo carro desligado"})
         if caminho in rotas:
             nome, tipo = rotas[caminho]
+            if nome == "index.html" and not modo_carro():
+                try:                      # tira o botão do modo carro da página do celular
+                    html = _arquivo(nome).decode("utf-8")
+                    html = re.sub(r'<a href="/carro"[^>]*>.*?</a>', "", html, flags=re.S)
+                    return self._resp(200, html, tipo)
+                except OSError:
+                    return self._resp(404, {"erro": "arquivo não encontrado"})
             try:
                 return self._resp(200, _arquivo(nome), tipo, cache=nome.endswith((".png", ".mp3")))
             except OSError:
@@ -209,7 +223,7 @@ def iniciar():
             # padrão: só o próprio PC (o celular chega pelo Tailscale). Rede da casa só se ligar no config.json.
             srv = ThreadingHTTPServer(("0.0.0.0" if rede_local() else "127.0.0.1", PORTA), Handler)
             srv.daemon_threads = True
-            print(f"Servidor do Jon e Modo Carro pronto (porta {PORTA}).")
+            print(f"Servidor do Jon pronto (porta {PORTA})" + (" • modo carro ligado." if modo_carro() else "."))
             srv.serve_forever()
         except OSError as e:
             print("  Não consegui abrir o servidor:", e)

@@ -65,6 +65,38 @@ def repo():
         return REPO_PADRAO
 
 
+def ignorados():
+    """Partes que você não quer no seu Jon (config.json -> "ignorar_na_atualizacao": ["pasta/", "arquivo.bat"])."""
+    try:
+        with open(ARQ_CONFIG, encoding="utf-8") as f:
+            return [str(x).replace("\\", "/").lstrip("/") for x in json.load(f).get("ignorar_na_atualizacao", [])]
+    except Exception:
+        return []
+
+
+def _ignorado(rel, lista):
+    rel = rel.replace("\\", "/")
+    return any(rel == x or (x.endswith("/") and rel.startswith(x)) for x in lista)
+
+
+def limpar_ignorados():
+    """Tira da pasta do Jon o que está na lista de ignorados (vai pra backups/removidos, nada é apagado)."""
+    lista = ignorados()
+    movidos = []
+    if not lista:
+        return movidos
+    destino_base = os.path.join(PASTA, "backups", "removidos-" + time.strftime("%Y%m%d-%H%M%S"))
+    for item in lista:
+        origem = os.path.join(PASTA, *item.rstrip("/").split("/"))
+        if not os.path.exists(origem):
+            continue
+        destino = os.path.join(destino_base, *item.rstrip("/").split("/"))
+        os.makedirs(os.path.dirname(destino), exist_ok=True)
+        shutil.move(origem, destino)
+        movidos.append(item)
+    return movidos
+
+
 def estado():
     try:
         with open(ARQ_ESTADO, encoding="utf-8") as f:
@@ -122,6 +154,7 @@ def aplicar(sha=None):
     z = zipfile.ZipFile(io.BytesIO(dados))
     raiz = z.namelist()[0].split("/")[0] + "/"
     novos = {}
+    pular = ignorados()
     for nome in z.namelist():
         if nome.endswith("/") or not nome.startswith(raiz):
             continue
@@ -129,7 +162,7 @@ def aplicar(sha=None):
         base = os.path.basename(rel)
         if not rel or base in PROTEGIDOS or rel.startswith((".git", "backups/")) or not base.lower().endswith(EXTENSOES):
             continue
-        if ".." in rel.split("/"):
+        if ".." in rel.split("/") or _ignorado(rel, pular):
             continue
         novos[rel] = z.read(nome)
     if "app.pyw" not in novos or "assistente_voz.py" not in novos:

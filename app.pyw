@@ -2022,6 +2022,13 @@ class App(ctk.CTk):
 
     def _instalar_faltando(self):
         """Bibliotecas novas que vieram numa atualização (ex.: voz JARVIS = edge-tts): instala sozinho, uma vez."""
+        if atualizador is not None:
+            try:
+                tirados = atualizador.limpar_ignorados()
+                if tirados:
+                    print("  -> Removi do Jon o que você não usa: " + ", ".join(tirados) + " (cópia em backups/removidos).")
+            except Exception as e:
+                print("  (não consegui limpar os arquivos ignorados:", e, ")")
         faltando = []
         for modulo, pacote in (("edge_tts", "edge-tts"),):
             try:
