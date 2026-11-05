@@ -806,6 +806,26 @@ def comandos_jarvis(f: str, original: str) -> bool:
         resp = extras.minimizar_tudo()
     elif re.search(r"\b(bloqueia|trava|tranca)\s+(o\s+)?(pc|computador|tela)\b", f):
         resp = extras.bloquear_pc()
+    # otimizar PC / limpar memória / limpar arquivos temporários / esvaziar lixeira
+    elif re.search(r"\b(otimiza\w*|limpa\w*|libera\w*|acelera\w*|desfragmenta\w*|turbo)\b.*\b(pc|computador|sistema|memoria|ram|arquivos temporarios|cache|disco)\b", f) \
+            or re.match(r"^(otimizar|otimiza|limpar pc|limpar computador|liberar memoria|liberar ram|limpar memoria)$", f):
+        resp = extras.otimizar_pc()
+    elif re.search(r"\b(esvazia\w*|limpa\w*)\s+(a\s+)?lixeira\b", f):
+        resp = extras.esvaziar_lixeira()
+    elif re.search(r"\b(organiza\w*|arruma\w*)\s+(a\s+|os\s+|meus\s+)?(pasta\s+(de\s+)?)?(downloads?|area de trabalho|desktop|documentos)\b", f):
+        qual = "desktop" if ("area" in f or "desktop" in f) else "documentos" if "documento" in f else "downloads"
+        resp = extras.organizar_pasta(qual)
+    elif re.search(r"\b(quais|que)\s+(programas?|processos?|apps?)\s+(estao\s+|ta\s+)?(pesados?|gastando|consumindo|usando)\b|\bprocessos pesados\b|\bo que (ta|esta) deixando o pc lento\b", f):
+        resp = extras.processos_pesados()
+    elif re.match(r"^(cria|criar|crie|nova)\s+(uma\s+|a\s+)?pasta\s+(?:chamada\s+|com\s+o\s+nome\s+|de\s+nome\s+)?(.+)$", f):
+        resto_p = re.match(r"^(?:cria|criar|crie|nova)\s+(?:uma\s+|a\s+)?pasta\s+(?:chamada\s+|com\s+o\s+nome\s+|de\s+nome\s+)?(.+)$", original, flags=re.I).group(1).strip()
+        onde_p = "desktop"
+        m_onde = re.search(r"\s+(?:na|no|em|dentro\s+de|dentro\s+da|nos|nas)\s+(area de trabalho|desktop|documentos|downloads|imagens|fotos|videos|musicas|disco\s+[a-z])$", normalizar(resto_p))
+        if m_onde:
+            onde_p = m_onde.group(1)
+            resto_p = resto_p[:m_onde.start()].strip()
+        resto_p = re.sub(r"^(chamada|com nome|de nome)\s+", "", resto_p, flags=re.I).strip(" \"'")
+        resp = extras.criar_pasta(resto_p, onde_p)
     # pesquisa de verdade (busca + resumo falado)
     elif "spotify" not in f and "youtube" not in f and (
             re.match(r"^(me fala sobre|me fale sobre|me explica|me explique|pesquisa pra mim|pesquisa para mim|"
@@ -1227,6 +1247,30 @@ def executar_acao(a: dict, frase_original: str = ""):
         print("  -> " + extras.clima(txt, amanha="amanha" in normalizar(frase_original)))
     elif tipo_acao == "status_sistema":
         resp = sistema.resumo_falado()
+    elif tipo_acao == "criar_pasta":
+        resp = extras.criar_pasta(txt, a.get("onde") or "desktop")
+        print(f"  -> {resp}")
+    elif tipo_acao == "criar_arquivo":
+        resp = extras.criar_arquivo(txt, a.get("conteudo") or "", a.get("onde") or "desktop")
+        print(f"  -> {resp}")
+    elif tipo_acao == "organizar_pasta":
+        resp = extras.organizar_pasta(txt or a.get("onde") or "downloads")
+        print(f"  -> {resp}")
+    elif tipo_acao == "otimizar_pc":
+        resp = extras.otimizar_pc()
+        print(f"  -> {resp}")
+    elif tipo_acao == "esvaziar_lixeira":
+        resp = extras.esvaziar_lixeira()
+        print(f"  -> {resp}")
+    elif tipo_acao == "processos_pesados":
+        resp = extras.processos_pesados()
+        print(f"  -> {resp}")
+    elif tipo_acao == "instalar_programa":
+        resp = extras.instalar_programa(txt)
+        print(f"  -> {resp}")
+    elif tipo_acao == "comando_powershell":
+        resp = extras.comando_powershell(txt)
+        print(f"  -> {resp}")
     elif tipo_acao == "responder":
         pass
     else:

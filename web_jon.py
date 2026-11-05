@@ -71,7 +71,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Cache-Control", "max-age=86400" if cache else "no-store")
         self.end_headers()
-        self.wfile.write(corpo)
+        try:
+            self.wfile.write(corpo)
+        except OSError:
+            pass
 
     def do_OPTIONS(self):
         self._resp(200, b"", "text/plain")

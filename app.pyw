@@ -165,8 +165,12 @@ EXEMPLOS = [
                              "cancela os timers"]),
     ("Dia a dia", ["bom dia (resumo do dia)", "que horas são", "que dia é hoje", "como está o tempo",
                    "vai chover amanhã", "como está o clima em São Paulo", "status do sistema"]),
-    ("Computador", ["abre o Discord", "fecha o Discord", "abre a pasta Downloads", "abre o disco E",
-                    "tira um print", "minimiza tudo", "bloqueia o PC"]),
+    ("Computador e Agente IA", ["cria uma pasta chamada Projetos na área de trabalho",
+                                "cria um arquivo notas.txt com minha lista de tarefas",
+                                "otimiza o PC (limpa temp, libera RAM e lixeira)",
+                                "organiza a pasta Downloads por tipo", "esvazia a lixeira",
+                                "quais programas estão pesados?", "instala o VLC",
+                                "abre o Discord", "fecha o Discord", "tira um print", "bloqueia o PC"]),
     ("YouTube e web", ["toca lofi no YouTube", "pesquisa receita de bolo"]),
     ("IA (frases livres)", ["bota aquela do Coldplay que fala de amarelo", "quanto é 15% de 230?",
                             "quando eu falar meu som, toca minhas músicas curtidas",
@@ -1294,10 +1298,10 @@ class App(ctk.CTk):
         p.pack(fill="x", pady=(10, 0))
         grade = ctk.CTkFrame(p.corpo, fg_color="transparent")
         grade.pack(fill="x")
-        ATALHOS = [("", "Downloads", "abre a pasta downloads"), ("", "Print", "tira um print"),
-                   ("", "Área de trab.", "minimiza tudo"), ("", "Bloquear", "bloqueia o pc"),
+        ATALHOS = [("", "Downloads", "abre a pasta downloads"), ("", "Otimizar PC", "otimiza o pc"),
+                   ("", "Arrumar DL", "organiza a pasta downloads"), ("", "Limpar Lixo", "esvazia a lixeira"),
                    ("", "Bom dia", "bom dia"), ("", "Clima", "como está o tempo"),
-                   ("", "Timer 5 min", "timer de 5 minutos"), ("", "Status", "status do sistema")]
+                   ("", "Print", "tira um print"), ("", "Bloquear", "bloqueia o pc")]
         for k, (ic, rot, cmd) in enumerate(ATALHOS):
             grade.grid_columnconfigure(k % 4, weight=1, uniform="a")
             t = self._tile(grade, ic, rot, lambda c=cmd: self.rodar_comando(c))
@@ -2207,6 +2211,15 @@ class App(ctk.CTk):
 
         def rodar():
             try:
+                # Se for uma ordem direta pro PC (criar pasta/arquivo, otimizar, abrir, tocar, etc.), executa de verdade!
+                f_norm = av.normalizar(texto)
+                eh_acao = re.match(r"^(cria\w*|otimiza\w*|limpa\w*|libera\w*|esvazia\w*|organiza\w*|arruma\w*|abre\w*|abrir|fecha\w*|fechar|toca\w*|tocar|instala\w*|bloqueia\w*|minimiza\w*|tira\w* um print|processos pesados)", f_norm)
+                if eh_acao:
+                    r_exec = av.executar_remoto(texto, "pc")
+                    resp_acao = r_exec.get("resposta") or "Pronto, senhor."
+                    av.falar(resp_acao)
+                    fila.put(("fim", "⚡ " + resp_acao))
+                    return
                 resp = ia_local.conversar(hist, lambda parcial: fila.put(("parcial", parcial)))
                 fila.put(("fim", resp or "(sem resposta)"))
             except Exception as e:
