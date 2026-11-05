@@ -1,0 +1,45 @@
+========================================================================
+  ◆ J O N   O S — CENTRAL MULTIMÍDIA MP10 9" (FIAT UNO 2006)
+========================================================================
+
+1. COMO TESTAR AGORA MESMO (EM TELA CHEIA NATIVA)
+------------------------------------------------------------------------
+- Dê dois cliques em: 6_modo_carro_uno.bat (na pasta Jon)
+- Ele abre o JON OS como um aplicativo nativo em tela cheia (sem abas
+  de navegador) e toca automaticamente a saudação estilo J.A.R.V.I.S.:
+  "Sistemas online. Bem-vindo, João Vitor. Todos os módulos do Uno
+   estão operacionais. Para onde vamos hoje?"
+
+2. COMO FUNCIONA A CÂMERA DE RÉ (DUPLO SUPORTE)
+------------------------------------------------------------------------
+A) No painel do JON OS (Software / USB / Captura AV):
+   - Toque no botão vermelho "🎥 CÂM. RÉ" na barra esquerda, clique na
+     marcha "R" do câmbio no painel, aperte a tecla "R" ou fale:
+     "Jon, câmera de ré".
+   - O sistema faz "Audio Ducking" automático (abaixa o volume do rádio
+     e do Spotify para 20% para você ouvir os sensores).
+   - O Jon avisa por voz: "Câmera de ré engatada. Sensores traseiros
+     ativos. Atenção às manobras, João Vitor."
+   - Exibe as linhas guia dinâmicas (Verde 2.0m, Amarelo 1.0m, Vermelho
+     0.4m PARE) que curvam junto com o volante + radar ultrassônico com
+     bip progressivo de proximidade.
+
+B) Na fiação física da Central Multimídia MP10 9" no Uno 2006:
+   - O cabo RCA amarelo da câmera de ré vai na entrada "CAM IN / REAR"
+     atrás da central MP10.
+   - O fio vermelho fino ("BACK" ou "REVERSE") do chicote da MP10 liga
+     no positivo (+12V) da lâmpada de ré da lanterna traseira do Uno.
+   - Assim que você engatar a ré no câmbio do Uno, os 12V acionam a
+     imagem automaticamente!
+
+3. COMO INSTALAR NA CENTRAL MULTIMÍDIA 9" DO UNO
+------------------------------------------------------------------------
+Opção A — Modo Aplicativo Nativo Instantâneo (PWA Fullscreen / APK WebView):
+  1. Conecte a multimídia 9" no Wi-Fi/Roteador do celular (com Tailscale
+     ou na mesma rede) ou compile o projeto Android desta pasta
+     (android_uno_9p) no Android Studio para gerar o APK Standalone.
+  2. Ao instalar o APK desta pasta, o AndroidManifest já registra o
+     JON OS como LAUNCHER AUTOMOTIVO (CATEGORY_HOME + CAR_DOCK) e
+     inicialização automática (RECEIVE_BOOT_COMPLETED).
+  3. Ao girar a chave do Uno 2006, a central já sobe direto na tela do
+     Jon e fala com você!
