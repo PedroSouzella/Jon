@@ -6,6 +6,7 @@ Escuta SÓ no próprio PC (127.0.0.1:8765). Quem leva até o celular, com HTTPS 
 """
 import asyncio
 import json
+import re
 import os
 import threading
 import time
@@ -52,6 +53,29 @@ def _arquivo(nome):
         return f.read()
 
 
+def _config():
+    try:
+        with open(os.path.join(PASTA, "config.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def rede_local() -> bool:
+    """Só abre o servidor pra rede da casa se você ligar isso no config.json ("servidor_rede_local": true)."""
+    return bool(_config().get("servidor_rede_local"))
+
+
+def _host_ok(h: str) -> bool:
+    """Só aceita pedidos endereçados ao próprio PC ou ao Tailscale (bloqueia sites tentando mandar comandos)."""
+    h = (h or "").lower().split(":")[0].strip("[]")
+    if h in ("127.0.0.1", "localhost", "::1") or h.endswith(".ts.net"):
+        return True
+    if rede_local() and re.match(r"^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)", h):
+        return True
+    return False
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "Jon/1.0"
 
@@ -66,9 +90,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(codigo)
         self.send_header("Content-Type", tipo)
         self.send_header("Content-Length", str(len(corpo)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        origem = self.headers.get("Origin", "")
+        if origem and _host_ok(urllib.parse.urlsplit(origem).netloc):     # nada de "*": só as páginas do próprio Jon
+            self.send_header("Access-Control-Allow-Origin", origem)
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Cache-Control", "max-age=86400" if cache else "no-store")
         self.end_headers()
         try:
@@ -76,11 +102,24 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             pass
 
+    def _seguro(self) -> bool:
+        """Bloqueia pedidos de outros sites (CSRF) e de nomes estranhos (DNS rebinding)."""
+        if not _host_ok(self.headers.get("Host", "")):
+            return False
+        origem = self.headers.get("Origin", "")
+        if origem and origem != "null" and not _host_ok(urllib.parse.urlsplit(origem).netloc):
+            return False
+        return True
+
     def do_OPTIONS(self):
+        if not self._seguro():
+            return self._resp(403, {"erro": "origem não permitida"})
         self._resp(200, b"", "text/plain")
 
     def do_GET(self):
         caminho = self.path.split("?")[0]
+        if not self._seguro():
+            return self._resp(403, {"erro": "origem não permitida"})
         rotas = {"/": ("index.html", "text/html; charset=utf-8"),
                  "/carro": ("carro.html", "text/html; charset=utf-8"),
                  "/carro.html": ("carro.html", "text/html; charset=utf-8"),
@@ -129,6 +168,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         caminho = self.path.split("?")[0]
+        if not self._seguro():
+            return self._resp(403, {"erro": "origem não permitida"})
         if caminho not in ("/api/comando", "/api/atalho"):
             return self._resp(404, {"erro": "não existe"})
         try:
@@ -165,7 +206,8 @@ class Handler(BaseHTTPRequestHandler):
 def iniciar():
     def rodar():
         try:
-            srv = ThreadingHTTPServer(("0.0.0.0", PORTA), Handler)
+            # padrão: só o próprio PC (o celular chega pelo Tailscale). Rede da casa só se ligar no config.json.
+            srv = ThreadingHTTPServer(("0.0.0.0" if rede_local() else "127.0.0.1", PORTA), Handler)
             srv.daemon_threads = True
             print(f"Servidor do Jon e Modo Carro pronto (porta {PORTA}).")
             srv.serve_forever()

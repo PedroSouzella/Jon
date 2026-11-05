@@ -12,6 +12,9 @@ IA local offline (Ollama) e chat por texto.
 - **Painéis**: sistema (CPU/RAM/GPU/discos), apps recentes, downloads, e-mails, notificações do Windows
 - **Big Picture** (`F11`): tela cheia com suporte a controle de Xbox
 - **Celular**: página PWA privada via Tailscale
+- **Filmes e vídeos**: tela cheia, play/pausa, avançar/voltar, volume, próximo episódio (Stremio, VLC, Netflix, YouTube, Prime, Disney+, Max…)
+- **Vários comandos de uma vez**: "bota tela cheia e dá play", "abre o Stremio e coloca em tela cheia"
+- **Atualização automática**: o Jon confere este repositório e instala versões novas com um clique (com backup; seus dados não são tocados)
 
 ## Instalação
 1. Instale o **Python 3.12** (marque "Add python.exe to PATH").
