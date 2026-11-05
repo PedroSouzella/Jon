@@ -53,6 +53,18 @@ class Saida:
 
 sys.stdout = sys.stderr = Saida()
 
+
+def _anotar_erro(tipo, valor, tb):
+    try:
+        with open(os.path.join(PASTA, "jon_v1_erro.txt"), "w", encoding="utf-8") as f:
+            f.write("Python: " + sys.version + "\n")
+            traceback.print_exception(tipo, valor, tb, file=f)
+    except Exception:
+        pass
+
+
+sys.excepthook = _anotar_erro
+
 import customtkinter as ctk  # noqa: E402
 from PIL import Image, ImageDraw, ImageFilter  # noqa: E402
 
