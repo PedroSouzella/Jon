@@ -354,7 +354,16 @@ class JonV1(ctk.CTk):
 
 if __name__ == "__main__":
     try:
+        with open(os.path.join(PASTA, "jon_v1_erro.txt"), "w", encoding="utf-8") as f:
+            f.write("iniciou " + time.strftime("%H:%M:%S") + "\n")
+    except Exception:
+        pass
+    try:
         JonV1().mainloop()
     except Exception:
-        traceback.print_exc(file=sys.__stderr__)
+        try:
+            with open(os.path.join(PASTA, "jon_v1_erro.txt"), "w", encoding="utf-8") as f:
+                traceback.print_exc(file=f)
+        except Exception:
+            pass
         ctypes.windll.user32.MessageBoxW(0, "O Jon V1 fechou por um erro.", "Jon V1", 0x10)
